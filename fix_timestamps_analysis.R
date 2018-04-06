@@ -3,7 +3,7 @@ source('r_scripts/iassist_convert_function.R')
 source('r_scripts/functions_chinadata.R') #This is for iassist data with multiple sheets in the same workbook...gets all the data.
 source('r_scripts/fix_timestamp_function.R')
 source('r_scripts/functions_thermocouple.R') #For the thermocouple logger used in the EPA STAR project.
-source('r_scripts/ibutton_timestamp_fix.R')
+
 
 ###INSTRUCTIONS
 #The SUMs Analysis R code should be set as the working directory
@@ -11,9 +11,10 @@ source('r_scripts/ibutton_timestamp_fix.R')
 #Corrected data is saved into a folder from where the files were selected.
 #Need to update to input Wellzion data and convert it to iButton data.
 
+
 #interactive file selection to fix time stamps and plot the data.
 files_plot <- tk_choose.files(default = "", caption = "Select files",
-                              multi = TRUE, filters = NULL, index = 1)
+                              multi = TRUE, filters = matrix(c("SUMs files",".csv"),1, 2, byrow = TRUE), index = 1)
 
 
 l_ply(files_plot, fileCleanerTimeStamp, .progress='text') #Fix timestamps and headers if necessary.
@@ -25,7 +26,7 @@ l_ply(files_plot, fileCleanerTimeStamp, .progress='text') #Fix timestamps and he
 #l_ply(files_plot, iassist.import, .progress='text', zip=F)# Convert iassist data to ibutton formatted data.
 
 
-filerun <- files_plot[13]
+filerun <- files_plot[31]
 
 
 

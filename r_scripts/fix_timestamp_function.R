@@ -3,6 +3,7 @@ library(reshape2)
 library(lubridate)
 library(tools)
 library(data.table)
+library(anytime)
 
 fileCleanerTimeStamp <- function(filerun){
   
@@ -51,23 +52,74 @@ fileCleanerTimeStamp <- function(filerun){
   #If second column is units 'C' then time stamp is in correct format.  If not, need to combine date and time from the first and second column
   
   #check first datetime element
-  DT1 <- datas[,length(unique(as.numeric(substring(Date.Time,1,2))))]
-  #check second datetime element
-  DT2 <- datas[,length(unique(as.numeric(substring(Date.Time,4,5))))]
+  
+
+  #Get the number of unique values in the first date position.
+  date_string_start_fun <- function(xx,y) {substring(xx,1,sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[1])-1) }
+  date_string_middle_fun <- function(xx,y,start,end) {substring(xx, sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[start])+1
+    ,sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[end])-1) }
+  date_string_end_fun <- function(xx,y) {substring(xx, sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[2])+1
+                                                          ,sapply(xx, function(x) unlist(gregexpr("\ ",x,perl=TRUE)))-1) }
+  
+
+  
+  DT1dash <-length(unique(date_string_start_fun(datas$Date.Time,"-")))#Grab first position of the date string assuming it uses a dash delimiter.
+  DT2dash <- length(unique(date_string_middle_fun(datas$Date.Time,"-",1,2)))#Grab middle position of the date string assuming it uses a dash delimiter.
+  DT3dash <- length(unique(date_string_end_fun(datas$Date.Time,"-")))#Grab last position of the date string assuming it uses a dash delimiter.
+  
+  
+  DT1slash <-length(unique(date_string_start_fun(datas$Date.Time,"/")))#Grab first position of the date string assuming it uses a dash delimiter.
+  DT2slash <- length(unique(date_string_middle_fun(datas$Date.Time,"/",1,2)))#Grab middle position of the date string assuming it uses a dash delimiter.
+  DT3slash <- length(unique(date_string_end_fun(datas$Date.Time,"/")))#Grab last position of the date string assuming it uses a dash delimiter.
+  
+  
+  slashpresence <- unique((sapply(regmatches(datas[,Date.Time], gregexpr("/", datas[,Date.Time])), length)))>1
+  dashpresence <- unique((sapply(regmatches(datas[,Date.Time], gregexpr("-", datas[,Date.Time])), length)))>1
   #check number of ":" in datetime stamp
-  DTl <- unique(sapply(regmatches(datas[,Date.Time], gregexpr(":", datas[,Date.Time])), length))
+  colonpresence <- unique((sapply(regmatches(datas[,Date.Time], gregexpr(":", datas[,Date.Time])), length)))
+  
   dir.create(path=paste(dirname(filerun),'/Corrected Timestamps',sep=""), showWarnings = FALSE)
   
-  #If there are more unique values in DT1 than DT2, then the first value is days. This could be defeated if there is only one day of data.
-  if((DT1>DT2) & all(DTl==2)){ 
+
+  options(warn=-1)
+
+  #If there are more unique values in DT1 than DT2, then the first value is days. This could be defeated if there is only one day of data. Would also not work if there are a lot of different formats with varying levels of leading zeros.
+  
+  if ((dashpresence) & (colonpresence==1) & DT1dash>DT2dash) { #D-M-Y hh:mm
+    datas[,Date.Time:=dmy_hm(as.character(Date.Time))]
+    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
+    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    
+  } else if ((dashpresence) & (colonpresence==2) & DT1dash>DT2dash) {  #D-M-Y hh:mm:ss
     datas[,Date.Time:=dmy_hms(as.character(Date.Time))]
     cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
     write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
-  }else {
+    
+  } else if ((dashpresence) & (colonpresence==1) & DT3dash>DT2dash) {  #Y-m-d hh:mm
+    datas[,Date.Time:=ymd_hm(as.character(Date.Time))]
+    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
+    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    
+  } else if ((dashpresence) & (colonpresence==2) & DT3dash>DT2dash)  {  #y-m-d hh:mm:ss
+    datas[,Date.Time:=ymd_hms(as.character(Date.Time))]
+    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
+    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    
+  } else if ((slashpresence) & (colonpresence==1) & DT2slash>DT1slash)  {  #M/D/Y hh:mm
+    datas[,Date.Time:=mdy_hm(as.character(Date.Time))]
+    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
+    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    
+  } else if ((slashpresence) & (colonpresence==2) & DT2slash>DT1slash)  {  #M/D/Y hh:mm:ss
+    datas[,Date.Time:=mdy_hms(as.character(Date.Time))]
+    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
+    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+  } else  {
     datas[,Date.Time:=mdy_hms(as.character(Date.Time))]
     cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
     write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
   }
+  
 }
 
 
