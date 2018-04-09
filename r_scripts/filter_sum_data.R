@@ -27,7 +27,7 @@ filter_sumsarized <- function(sumsarized,metadata,bad_files,HHID_remove){
     dplyr::group_by(filename) %>%
     dplyr::distinct(filename,datetime,stove_temp, .keep_all = TRUE)  %>% #Get rid of duplicate data points from the same file being imported/saved twice
     dplyr::ungroup() %>%
-    dplyr::mutate(qc = if_else(grepl(bad_files,filename,ignore.case=TRUE),"bad","ok")) %>%
+    dplyr::mutate(qc = if_else(grepl(bad_files,fullsumsarizer_filename,ignore.case=TRUE),"bad","ok")) %>%
     dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID),"bad",qc))
 
   }
