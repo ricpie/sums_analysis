@@ -1,6 +1,6 @@
 #Parameter file
 
-reimport_data <- FALSE #Set to TRUE if we need to reimport data SUMSARIZED, but this is slower.  Set to FALSE if already imported and no new data has been added.
+project_name <- "Nigeria_AfDB"
 
 #Text associating a given stove code with the full name to use in figures.
 stove_codes <- data.frame(stove = as.factor(c("CC","LP","LPG","KE","KE(1)","KE(2)","AMB")),
@@ -17,7 +17,6 @@ total_days_logged_minimum <- 5 #Must have at least this many days for a househol
 
 #Set path to tracking sheet relative to 'SUMS processing' directory
 # path_tracking_sheet <- "SUMS Tracking data/AfBb_SUM_Tracking Data_Dec7_v2.xlsx"
-path_tracking_sheet <- "Nigeria_BCC_SUMS tracking form database_NEW_1st Download_1.xlsx"
 path_tracking_sheet <- "AfBb_SUM_Tracking Data_Jan23.xlsx"
 
 #Not yet implemented.

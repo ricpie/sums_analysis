@@ -93,7 +93,7 @@ load_meta_download <- function(xx){
     "amb.logged","amb.logger_id","amb.datetime_placed",
     "amb.time_placed","amb.location","comments")
   
-  asdf<- read_excel(paste0("../../",xx, collapse=NULL),
+  asdf<- read_excel(paste0("../../","SUMs Tracking Data","/",xx, collapse=NULL),
           sheet = 'AllData',skip = 1,
           col_names = column_names,
           
