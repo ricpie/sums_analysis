@@ -10,8 +10,6 @@ output:
     self_contained: no
 ---
 
-
-
 # Define variables for coding stoves and for filtering out data.  
 * Also set some constants for the stove event analysis
 
@@ -29,11 +27,12 @@ output:
   cooking_duration_minimum <- 9  #Minutes
   cooking_duration_maximum <- 1440 #Minutes
   logging_duration_minimum <- 1 #days.  Single file duration must be this long to be included in the analysis.
-  total_days_logged_minimum <- 20 #Must have at least this many days for a households's stove to be included in the analysis.
+  total_days_logged_minimum <- 5 #Must have at least this many days for a households's stove to be included in the analysis.
   
   #Set path to tracking sheet relative to 'SUMS processing' directory
   # path_tracking_sheet <- "SUMS Tracking data/AfBb_SUM_Tracking Data_Dec7_v2.xlsx"
-  path_tracking_sheet <- "SUMS Tracking data/AfBb_SUM_Tracking Data_Jan23.xlsx"
+  path_tracking_sheet <- "Nigeria_BCC_SUMS tracking form database_NEW_1st Download_1.xlsx"
+  path_tracking_sheet <- "AfBb_SUM_Tracking Data_Jan23.xlsx"
   
   #Not yet implemented.
   start_date_range <- "2017-6-1" #Year-Month-Day format.  Do not include data before this in the analysis
@@ -44,42 +43,18 @@ output:
   #given file, not generic enough to remove more files than intended)
   bad_files <- paste(c("0_0_3_P83601_IndiaDMYminave","|0_0_3_P46673_Indiaminaves","|AKOKA DOWNLOAD 5_CC/"
               ,"|AKOKA DOWNLOAD"
-              ,"|AKOKA DOWNLOAD 5_KE/"
-              ,"|AKOKA DOWNLOAD 5_CC/"
-              ,"|AKOKA DOWNLOAD 5_LPG/"
-              ,"|MUSHIN DOWNLOAD 5_CC/"
-              ,"|MUSHIN DOWNLOAD 5"
-              ,"|MUSHIN DOWNLOAD 5_KE/"
-              ,"|SHOMOLU DOWNLOAD 5"
-              ,"|SHOMOLU DOWNLOAD 5_CC/"
-              ,"|SHOMOLU DOWNLOAD 5_KE/"
-              ,"|SHOMOLU DOWNLOAD 5_LPG/"
-              ,"|Akoka fourth download CC/"
-              ,"|Akoka fouth download"
-              ,"|Akoka fourth download"
-              ,"|Akoka fourth download LPG/"
-              ,"|Mushin fourth download CC/"
-              ,"|Mushin fourth download KE/"
-              ,"|Shomolu fourth download"
-              ,"|Shomolu fourth download CC/"
-              ,"|Shomolu fourth download KE/"
-              ,"|Shomolu fourth download LPG/"),collapse="")
+              ,"|AKOKA DOWNLOAD 5_KE/" ,"|AKOKA DOWNLOAD 5_CC/" ,"|AKOKA DOWNLOAD 5_LPG/"
+              ,"|MUSHIN DOWNLOAD 5_CC/","|MUSHIN DOWNLOAD 5","|MUSHIN DOWNLOAD 5_KE/"
+              ,"|SHOMOLU DOWNLOAD 5","|SHOMOLU DOWNLOAD 5_CC/","|SHOMOLU DOWNLOAD 5_KE/"
+              ,"|SHOMOLU DOWNLOAD 5_LPG/","|Akoka fourth download CC/","|Akoka fouth download"
+              ,"|Akoka fourth download","|Akoka fourth download LPG/","|Mushin fourth download CC/"
+              ,"|Mushin fourth download KE/","|Shomolu fourth download","|Shomolu fourth download CC/"
+              ,"|Shomolu fourth download KE/","|Shomolu fourth download LPG/"),collapse="")
   
   # Exclude data from the following households from the entire analysis.
   HHID_remove <- paste(c("^SHO_03$","|^SHO_04$","|^SHO_08$","|^SHO_10$","|^MUS_01$",
                   "|^AKO_01$","|^AKO_02$","|^AKO_03$","|^AKO_05$","|^AKO_06$","|^AKO_07$","|^AKO_08$"),collapse="")
-  
-  
-  # Exclude data from the following households from the usage fraction analysis. (to be implemented)
-  HHID_usage_fraction_remove <- paste(c("SHO_03","|SHO_04","|SHO_08","|SHO_10","|MUS_01",
-                  "|AKO_01","|AKO_02","|AKO_03","|AKO_05","|AKO_06","|AKO_07","|AKO_08"),collapse="")
 
-
-```
-
-```{r library, message=FALSE, warning=FALSE, echo=FALSE}
-  #Issue with auto-setting the directory.  Do it manually.
-  #tryCatch(setwd(dirname(rstudioapi::getActiveDocumentContext()$path)),finally = print('Set working directory to the SUMs analysis R code folder'))
 ```
 
 ```{r global_options, include=FALSE}
@@ -88,17 +63,21 @@ output:
 
 ```{r functions_libs}
   source('../r_scripts/load.R')
+  source("../r_scripts/functions.R")
+  source("../r_scripts/load_data.r")
+  source("../r_scripts/plots.R")
+  source("../r_scripts/filter_sum_data.R")
 ```
 
 # Import temperature data and metadata files
 ```{r load_data, warning=FALSE, echo=FALSE}
   #Reloads all SUMSARIZED data.
-if (reimport_data == TRUE) {
-  #Rprof("rprofout.out") #Analyze code, it is quite slow... but only need to do it occasionally.
-  saveRDS(load_sumsarized(stove_codes$stove), file = "../r_files/sumsarized.RDS")
-  #Rprof(NULL)
-  #summaryRprof("../r_markdown/rprofout.out")
-}
+  if (reimport_data == TRUE) {
+    #Rprof("rprofout.out") #Analyze code, it is quite slow due to gsubfn checking for naming errors... but only need to do it occasionally.
+    saveRDS(load_sumsarized(stove_codes$stove), file = "../r_files/sumsarized.RDS")
+    #Rprof(NULL)
+    #summaryRprof("../r_markdown/rprofout.out")
+  }
 
   sumsarized <- readRDS("../r_files/sumsarized.RDS") #
 
@@ -114,8 +93,6 @@ if (reimport_data == TRUE) {
 #Import thermocouple data time series output from Sumsarizer.
 #datetime_placed is currently based on the metadata.  Flags data as good/bad based on the bad_files and HHID_remove variables.  Those are reapplied directly to the cooking events later, and filtered out if bad.
 sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remove) #HHID is grabbed from the filename.
-
-
 ```
 
   

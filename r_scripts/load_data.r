@@ -64,7 +64,6 @@ load_sumsarized <- function(substitution_list){
     dplyr::mutate(filename = gsub(" ","_",filename))  %>%
     dplyr::mutate(filename = if_else(lengths(regmatches(filename, gregexpr("_", filename)))>3, substring(filename, sapply(filename, function(x) tail(unlist(gregexpr('_',x,perl=TRUE)),4)[1])+1, 100),filename))#If there are more than the three expected underscores, trim from the fourth from the last.
 
-
 }
 
 
@@ -76,13 +75,13 @@ load_meta_download <- function(xx){
         
   # Text names for the v1 version of the tracking sheet    
   # varname_text <- c("stove_type","datetime_removal","time_removal","datetime_download","logger_id",
-  # "max_temp","min_temp","filename","logger_new_id_number",
+  # "maxtemp","mintemp","filename","logger_new_id_number",
   # "new_placement_on_stove","datetime_placed","location")
   
   # Text names for the v2 version of the tracking sheet
   varname_text <- c("stove_type","datetime_placed","time_placed","datetime_removal",
                     "time_removal","datetime_download","logger_id",
-                    "max_temp","min_temp","filename","logger_new_id_number",
+                    "maxtemp","mintemp","filename","logger_new_id_number",
                     "new_placement_on_stove","time_replaced","location")
 
   variers <- c( paste('S1.',varname_text,sep=''),
@@ -178,22 +177,112 @@ colnames(long_metadata) <- c("HHID",                        "deployment"     ,  
                              "stove_type")
 
 
-#time_removal datetime_removal stove_type max_temp min_temp logger_new_id_number new_placement_on_stove
+#time_removal datetime_removal stove_type maxtemp mintemp logger_new_id_number new_placement_on_stove
 #Need to add these back in when ready.
 long_metadata <- dplyr::select(long_metadata,-un5,-un2,-amb.time_placed)  
   
 }
 
 
+
 #________________________________________________________
-#Load tracking meta data download sheet(s)
+#Load V2 tracking meta data download sheet(s)
+#________________________________________________________
+
+load_meta_download_v2 <- function(path_tracking_sheet){
+
+  # Text names for the v2 version of the tracking sheet
+  varname_text <- c("placement_change","logger_id","stove_type","location_description","photo_yn","datetime_launched",
+                    "time_launched","datetime_placed","time_placed","notes_placement","datetime_removal",
+                    "time_removal","maxtemp","mintemp","filename","notes_download")
+  
+  variers <- c( paste('S1.',varname_text,sep=''),
+                paste('S2.',varname_text,sep=''),
+                paste('S3.',varname_text,sep=''),
+                paste('S4.',varname_text,sep=''))
+  #For the first non-repeating columns
+  column_names <- c("HHID","phone","hh_contact","enumerator","deployment","number_loggers_placed_home",variers)
+  
+  asdf<- read_excel(paste0("../","SUMs Tracking Data","/",path_tracking_sheet, collapse=NULL),
+                    sheet = 'AllData',skip = 1,
+                    col_names = column_names,
+                    
+                    col_types = c("text","text","text","text","text","numeric", #Non-variers 
+                                  "text","text","text","text","text","date", #Variers repeat 4 times
+                                  "date","date","date","text","date",
+                                  "date","numeric","numeric","text","text",
+                                  "text","text","text","text","text","date", 
+                                  "date","date","date","text","date",
+                                  "date","numeric","numeric","text","text",
+                                  "text","text","text","text","text","date", 
+                                  "date","date","date","text","date",
+                                  "date","numeric","numeric","text","text",
+                                  "text","text","text","text","text","date", 
+                                  "date","date","date","text","date",
+                                  "date","numeric","numeric","text","text")
+  )  %>%
+    # convert time to secs in day and fix file problems
+    dplyr::mutate(S1.datetime_placed =  as.POSIXct(paste(S1.datetime_placed, strftime(S1.time_placed,"%H:%M:%S")),
+                                                   format = "%Y-%m-%d %H:%M:%S",
+                                                   origin = "1970-01-01")) %>%
+    dplyr::mutate(S1.datetime_removal =  as.POSIXct(paste(S1.datetime_removal, strftime(S1.time_removal,"%H:%M:%S")),
+                                                    format = "%Y-%m-%d %H:%M:%S",
+                                                    origin = "1970-01-01")) %>%
+    dplyr::mutate(S2.datetime_placed =  as.POSIXct(paste(S2.datetime_placed, strftime(S2.time_placed,"%H:%M:%S")),
+                                                   format = "%Y-%m-%d %H:%M:%S",
+                                                   origin = "1970-01-01")) %>%
+    dplyr::mutate(S2.datetime_removal =  as.POSIXct(paste(S2.datetime_removal, strftime(S2.time_removal,"%H:%M:%S")),
+                                                    format = "%Y-%m-%d %H:%M:%S",
+                                                    origin = "1970-01-01")) %>%
+    dplyr::mutate(S3.datetime_placed =  as.POSIXct(paste(S3.datetime_placed, strftime(S3.time_placed,"%H:%M:%S")),
+                                                   format = "%Y-%m-%d %H:%M:%S",
+                                                   origin = "1970-01-01")) %>%
+    dplyr::mutate(S3.datetime_removal =  as.POSIXct(paste(S3.datetime_removal, strftime(S3.time_removal,"%H:%M:%S")),
+                                                    format = "%Y-%m-%d %H:%M:%S",
+                                                    origin = "1970-01-01")) %>%
+    dplyr::mutate(S4.datetime_placed =  as.POSIXct(paste(S4.datetime_placed, strftime(S4.time_placed,"%H:%M:%S")),
+                                                   format = "%Y-%m-%d %H:%M:%S",
+                                                   origin = "1970-01-01")) %>%
+    dplyr::mutate(S4.datetime_removal =  as.POSIXct(paste(S4.datetime_removal, strftime(S4.time_removal,"%H:%M:%S")),
+                                                    format = "%Y-%m-%d %H:%M:%S",
+                                                    origin = "1970-01-01")) %>%
+    dplyr::filter(!is.na(number_loggers_placed_home)) %>%
+    dplyr::filter(!is.na(deployment)) %>%
+    dplyr::filter(deployment!=0) %>%
+    as.data.frame()
+  
+  long_metadata <-  reshape(asdf, direction='long', 
+                            varying=variers, 
+                            timevar='placement_change',
+                            v.names=varname_text,
+                            times=c('S1','S2','S3','S4'),
+                            idvar=c('HHID','deployment'))
+    
+  
+  #Column orders changed, can't figure out why...manually correcting them.
+  colnames(long_metadata) <- c("HHID","phone","hh_contact","enumerator","deployment","number_loggers_placed_home",
+                               "datetime_launched",  "datetime_placed","datetime_removal","filename",
+                               "location_description", "logger_id","maxtemp","mintemp","notes_download",
+                               "notes_placement","photo_yn","placement_change","stove_type","time_launched","time_placed",  "time_removal")
+  
+  
+  #time_removal datetime_removal stove_type maxtemp mintemp logger_new_id_number new_placement_on_stove
+  #Need to add these back in when ready.
+  long_metadata <- dplyr::select(long_metadata,-placement_change,-hh_contact,-phone)  
+  
+}
+
+
+
+
+#________________________________________________________
+#Load JSON tracking meta data download sheet(s)
 #________________________________________________________
 
 load_meta_json <- function(xx){
   xx <- "SUMS Tracking data/Kigeme_SUMs_V1_results (2).json"
   xx<-paste0("../",xx, collapse=NULL)
 
-  
   
 data <- stream_in(file(xx)) 
 for (ii in 1:dim(data)[1]) {
@@ -227,5 +316,4 @@ install_codes <- data.frame(group = as.factor(c(1,2)),  #Use these if there are 
 
 
 }
-
 
