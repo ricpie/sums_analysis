@@ -228,7 +228,28 @@ div.tocify {
 </ul>
 <pre class="r"><code>  reimport_data &lt;- FALSE #Set to TRUE if we need to reimport data SUMSARIZED, but this is slower.  Set to FALSE if already imported and no new data has been added.
 
-  source(&#39;../r_files/parameter_file_Nigeria_AfDB.R&#39;)</code></pre>
+  source(&#39;../r_files/parameter_file_Nigeria_AfDB.R&#39;)
+  Removed_Houses &lt;- print(HHID_remove)</code></pre>
+<pre><code>## [1] &quot;^SHO_03$|^SHO_04$|^SHO_08$|^SHO_10$|^MUS_01$|^AKO_01$|^AKO_02$|^AKO_03$|^AKO_05$|^AKO_06$|^AKO_07$|^AKO_08$&quot;</code></pre>
+<pre class="r"><code>  Files_with_these_strings_removed &lt;- print(bad_files)</code></pre>
+<pre><code>## [1] &quot;0_0_3_P83601_IndiaDMYminave|0_0_3_P46673_Indiaminaves|AKOKA DOWNLOAD 5_CC/|AKOKA DOWNLOAD|AKOKA DOWNLOAD 5_KE/|AKOKA DOWNLOAD 5_CC/|AKOKA DOWNLOAD 5_LPG/|MUSHIN DOWNLOAD 5_CC/|MUSHIN DOWNLOAD 5|MUSHIN DOWNLOAD 5_KE/|SHOMOLU DOWNLOAD 5|SHOMOLU DOWNLOAD 5_CC/|SHOMOLU DOWNLOAD 5_KE/|SHOMOLU DOWNLOAD 5_LPG/|Akoka fourth download CC/|Akoka fouth download|Akoka fourth download|Akoka fourth download LPG/|Mushin fourth download CC/|Mushin fourth download KE/|Shomolu fourth download|Shomolu fourth download CC/|Shomolu fourth download KE/|Shomolu fourth download LPG/&quot;</code></pre>
+<pre class="r"><code>  print(stove_codes)</code></pre>
+<pre><code>##     stove stove_descriptions
+## 1      CC          CleanCook
+## 2   CC(B)          CleanCook
+## 3      LP                LPG
+## 4     LPG                LPG
+## 5      KE           Kerosene
+## 6  KE1(B)           Kerosene
+## 7  KE2(B)           Kerosene
+## 8   KE(B)           Kerosene
+## 9     AMB            Ambient
+## 10 AMB(B)            Ambient
+## 11    KE1           Kerosene
+## 12    KE1           Kerosene
+## 13    KE2           Kerosene
+## 14  KE(1)           Kerosene
+## 15  KE(2)           Kerosene</code></pre>
 <pre class="r"><code>  source(&#39;../r_scripts/load.R&#39;)
   source(&quot;../r_scripts/functions.R&quot;)
   source(&quot;../r_scripts/load_data.r&quot;)
@@ -312,7 +333,7 @@ sumsarized_filtered &lt;- filter_sumsarized(sumsarized,metadata,bad_files,HHID_r
                   HHID=as.factor(temp$HHID[breakstart]),
                   logger_id=factor(temp$logger_id[breakstart]),
                   stove=factor(temp$stove[breakstart]),
-                  logging_duration_days = as.numeric(temp$logging_duration_days[1]),
+                  logging_duration_days = as.numeric(difftime(datetime_removal_temp,datetime_placed_temp,units = &quot;days&quot;)),
                   datetime_placed = datetime_placed_temp,
                   datetime_removal = datetime_removal_temp,
                   file_indices = temp$file_indices[breakstart], 
@@ -333,7 +354,7 @@ sumsarized_filtered &lt;- filter_sumsarized(sumsarized,metadata,bad_files,HHID_r
                   HHID=as.factor(temp$HHID[1]), 
                   logger_id=factor(temp$logger_id[1]),
                   stove=factor(temp$stove[1]), 
-                  logging_duration_days=as.numeric(temp$logging_duration_days[1]),
+                  logging_duration_days = as.numeric(difftime(max(temp$datetime),min(temp$datetime),units = &quot;days&quot;)),
                   datetime_placed = min(temp$datetime),
                   datetime_removal = max(temp$datetime),
                   file_indices = temp$file_indices[1], 
@@ -354,14 +375,7 @@ sumsarized_filtered &lt;- filter_sumsarized(sumsarized,metadata,bad_files,HHID_r
                           dplyr::mutate(duration_minutes = as.numeric(difftime(end_time,start_time,units = &quot;mins&quot;))) %&gt;%
                           dplyr::mutate(qc = if_else(grepl(bad_files,fullsumsarizer_filename,ignore.case=TRUE),&quot;bad&quot;,&quot;ok&quot;)) %&gt;% #Flag data from bad files
                           dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID),&quot;bad&quot;,qc)) %&gt;% #Flag data from HHID&#39;s that should be removed.
-                          dplyr::mutate(qc = if_else(grepl(&quot;amb&quot;,fullsumsarizer_filename,ignore.case=TRUE),&quot;bad&quot;,qc))  #Flag data from HHID&#39;s that should be removed.
-               
-
-
- #Data summaries
- # simpledatasummary &lt;- summarise_each(sumsarized_events_all,funs(n_distinct(.)))
- # grouped_summary &lt;- cooking_events %&gt;% dplyr::group_by(group,stove_descriptions) %&gt;%
- #    dplyr::summarize(mean=mean(duration_minutes, na.rm = TRUE), median=median(duration_minutes, na.rm = TRUE),sd=sd(duration_minutes, na.rm = TRUE),n=n())</code></pre>
+                          dplyr::mutate(qc = if_else(grepl(&quot;amb&quot;,fullsumsarizer_filename,ignore.case=TRUE),&quot;bad&quot;,qc))  #Flag data from HHID&#39;s that should be removed.</code></pre>
 </div>
 <div id="remove-data-from-bad-files" class="section level1">
 <h1>Remove data from bad files:</h1>
@@ -397,7 +411,7 @@ sumsarized_filtered &lt;- filter_sumsarized(sumsarized,metadata,bad_files,HHID_r
                           dplyr::mutate(events_per_hhid_stove = n()) %&gt;%
                           dplyr::mutate(minutes_per_hhid_stove = sum(duration_minutes)) %&gt;%
                           dplyr::ungroup() %&gt;%
-                          dplyr::mutate(qc = if_else(days_logged_by_hhid_stove &lt;= total_days_logged_minimum,&quot;bad&quot;,qc)) %&gt;% # Only keep data from house-stove combos with more than this number of days of data.
+                          dplyr::mutate(qc = if_else(days_logged_by_hhid_stove &lt; total_days_logged_minimum,&quot;bad&quot;,qc)) %&gt;% # Only keep data from house-stove combos with more than this number of days of data.
                           dplyr::arrange(HHID) %&gt;%
                           dplyr::filter(grepl(&quot;ok&quot;,qc)) %&gt;%#Keep only data marked &#39;ok&#39;
                           dplyr::filter(!is.na(HHID)) %&gt;%
@@ -514,43 +528,53 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="left">CleanCook</td>
 <td align="left">AKO_04</td>
 <td align="left">AKO</td>
-<td align="right">0.24</td>
-<td align="right">9.16</td>
-<td align="right">37.83</td>
-<td align="right">95</td>
-<td align="right">104</td>
+<td align="right">0.22</td>
+<td align="right">8.83</td>
+<td align="right">39.52</td>
+<td align="right">94</td>
+<td align="right">102</td>
 </tr>
 <tr class="even">
+<td align="left">CleanCook</td>
+<td align="left">AKO_05B</td>
+<td align="left">AKO</td>
+<td align="right">0.75</td>
+<td align="right">38.75</td>
+<td align="right">51.67</td>
+<td align="right">8</td>
+<td align="right">10</td>
+</tr>
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">AKO_09</td>
 <td align="left">AKO</td>
-<td align="right">0.94</td>
-<td align="right">36.04</td>
-<td align="right">38.44</td>
-<td align="right">48</td>
-<td align="right">69</td>
-</tr>
-<tr class="odd">
-<td align="left">CleanCook</td>
-<td align="left">AKO_10</td>
-<td align="left">AKO</td>
-<td align="right">1.16</td>
-<td align="right">38.99</td>
-<td align="right">33.62</td>
-<td align="right">69</td>
-<td align="right">112</td>
+<td align="right">0.96</td>
+<td align="right">35.56</td>
+<td align="right">37.21</td>
+<td align="right">45</td>
+<td align="right">66</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
-<td align="left">MUS_02</td>
-<td align="left">MUS</td>
-<td align="right">0.27</td>
-<td align="right">7.80</td>
-<td align="right">29.09</td>
-<td align="right">82</td>
-<td align="right">92</td>
+<td align="left">AKO_10</td>
+<td align="left">AKO</td>
+<td align="right">1.18</td>
+<td align="right">39.40</td>
+<td align="right">33.42</td>
+<td align="right">67</td>
+<td align="right">110</td>
 </tr>
 <tr class="odd">
+<td align="left">CleanCook</td>
+<td align="left">MUS_02</td>
+<td align="left">MUS</td>
+<td align="right">0.26</td>
+<td align="right">7.53</td>
+<td align="right">29.05</td>
+<td align="right">81</td>
+<td align="right">91</td>
+</tr>
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">MUS_03</td>
 <td align="left">MUS</td>
@@ -560,7 +584,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">78</td>
 <td align="right">84</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">MUS_04</td>
 <td align="left">MUS</td>
@@ -570,17 +594,17 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">91</td>
 <td align="right">104</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">MUS_05</td>
 <td align="left">MUS</td>
-<td align="right">1.30</td>
-<td align="right">42.80</td>
-<td align="right">32.92</td>
-<td align="right">50</td>
-<td align="right">82</td>
+<td align="right">1.23</td>
+<td align="right">41.67</td>
+<td align="right">33.90</td>
+<td align="right">48</td>
+<td align="right">76</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">MUS_06</td>
 <td align="left">MUS</td>
@@ -590,7 +614,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">106</td>
 <td align="right">158</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">MUS_07</td>
 <td align="left">MUS</td>
@@ -600,7 +624,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">95</td>
 <td align="right">139</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">MUS_08</td>
 <td align="left">MUS</td>
@@ -610,7 +634,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">83</td>
 <td align="right">109</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">MUS_09</td>
 <td align="left">MUS</td>
@@ -620,7 +644,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">115</td>
 <td align="right">197</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">MUS_10</td>
 <td align="left">MUS</td>
@@ -630,7 +654,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">70</td>
 <td align="right">128</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
@@ -640,17 +664,17 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">76</td>
 <td align="right">107</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">SHO_02</td>
 <td align="left">SHO</td>
 <td align="right">0.77</td>
-<td align="right">24.10</td>
-<td align="right">31.28</td>
-<td align="right">61</td>
-<td align="right">79</td>
+<td align="right">24.33</td>
+<td align="right">31.74</td>
+<td align="right">60</td>
+<td align="right">78</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">SHO_05</td>
 <td align="left">SHO</td>
@@ -660,7 +684,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">78</td>
 <td align="right">105</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">SHO_06</td>
 <td align="left">SHO</td>
@@ -670,27 +694,27 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">92</td>
 <td align="right">104</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">SHO_07</td>
 <td align="left">SHO</td>
-<td align="right">0.79</td>
-<td align="right">28.46</td>
-<td align="right">36.10</td>
-<td align="right">52</td>
-<td align="right">63</td>
+<td align="right">0.78</td>
+<td align="right">29.20</td>
+<td align="right">37.44</td>
+<td align="right">50</td>
+<td align="right">61</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">SHO_09</td>
 <td align="left">SHO</td>
-<td align="right">0.26</td>
-<td align="right">7.00</td>
-<td align="right">27.22</td>
-<td align="right">70</td>
-<td align="right">75</td>
+<td align="right">0.23</td>
+<td align="right">6.52</td>
+<td align="right">28.12</td>
+<td align="right">69</td>
+<td align="right">73</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">AKO_01B</td>
 <td align="left">AKO</td>
@@ -699,6 +723,16 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">53.89</td>
 <td align="right">13</td>
 <td align="right">19</td>
+</tr>
+<tr class="odd">
+<td align="left">Kerosene</td>
+<td align="left">AKO_02B</td>
+<td align="left">AKO</td>
+<td align="right">0.54</td>
+<td align="right">28.46</td>
+<td align="right">52.86</td>
+<td align="right">13</td>
+<td align="right">20</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
@@ -722,6 +756,16 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
+<td align="left">AKO_05B</td>
+<td align="left">AKO</td>
+<td align="right">0.42</td>
+<td align="right">20.83</td>
+<td align="right">50.00</td>
+<td align="right">12</td>
+<td align="right">12</td>
+</tr>
+<tr class="odd">
+<td align="left">Kerosene</td>
 <td align="left">AKO_06B</td>
 <td align="left">AKO</td>
 <td align="right">1.08</td>
@@ -730,27 +774,27 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">13</td>
 <td align="right">17</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">AKO_09</td>
 <td align="left">AKO</td>
 <td align="right">0.74</td>
-<td align="right">51.51</td>
-<td align="right">70.00</td>
-<td align="right">53</td>
-<td align="right">75</td>
+<td align="right">52.80</td>
+<td align="right">71.35</td>
+<td align="right">50</td>
+<td align="right">72</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">AKO_10</td>
 <td align="left">AKO</td>
 <td align="right">2.34</td>
-<td align="right">177.43</td>
-<td align="right">75.84</td>
-<td align="right">109</td>
-<td align="right">263</td>
+<td align="right">176.94</td>
+<td align="right">75.53</td>
+<td align="right">108</td>
+<td align="right">261</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_02</td>
 <td align="left">MUS</td>
@@ -760,7 +804,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">124</td>
 <td align="right">377</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_03</td>
 <td align="left">MUS</td>
@@ -770,17 +814,17 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">20</td>
 <td align="right">27</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_04</td>
 <td align="left">MUS</td>
 <td align="right">0.89</td>
-<td align="right">64.24</td>
-<td align="right">71.84</td>
-<td align="right">85</td>
-<td align="right">108</td>
+<td align="right">62.62</td>
+<td align="right">70.13</td>
+<td align="right">84</td>
+<td align="right">107</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_05</td>
 <td align="left">MUS</td>
@@ -790,7 +834,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">66</td>
 <td align="right">131</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_06</td>
 <td align="left">MUS</td>
@@ -800,17 +844,17 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">109</td>
 <td align="right">255</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_07</td>
 <td align="left">MUS</td>
 <td align="right">0.73</td>
-<td align="right">41.13</td>
-<td align="right">56.15</td>
-<td align="right">71</td>
-<td align="right">91</td>
+<td align="right">41.00</td>
+<td align="right">56.27</td>
+<td align="right">70</td>
+<td align="right">90</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_08</td>
 <td align="left">MUS</td>
@@ -820,7 +864,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">72</td>
 <td align="right">147</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_09</td>
 <td align="left">MUS</td>
@@ -830,7 +874,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">121</td>
 <td align="right">163</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_10</td>
 <td align="left">MUS</td>
@@ -840,7 +884,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">92</td>
 <td align="right">271</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
@@ -850,7 +894,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">84</td>
 <td align="right">161</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO_02</td>
 <td align="left">SHO</td>
@@ -860,27 +904,27 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">75</td>
 <td align="right">139</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_05</td>
 <td align="left">SHO</td>
-<td align="right">3.71</td>
-<td align="right">281.22</td>
-<td align="right">75.86</td>
-<td align="right">41</td>
-<td align="right">152</td>
+<td align="right">3.78</td>
+<td align="right">275.51</td>
+<td align="right">72.97</td>
+<td align="right">49</td>
+<td align="right">185</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO_06</td>
 <td align="left">SHO</td>
-<td align="right">0.01</td>
-<td align="right">1.18</td>
-<td align="right">100.00</td>
-<td align="right">85</td>
-<td align="right">85</td>
+<td align="right">0.00</td>
+<td align="right">0.00</td>
+<td align="right">NaN</td>
+<td align="right">84</td>
+<td align="right">84</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_07</td>
 <td align="left">SHO</td>
@@ -890,7 +934,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">43</td>
 <td align="right">44</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO_09</td>
 <td align="left">SHO</td>
@@ -900,27 +944,27 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">59</td>
 <td align="right">89</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">LPG</td>
 <td align="left">AKO_04</td>
 <td align="left">AKO</td>
-<td align="right">0.90</td>
-<td align="right">32.69</td>
-<td align="right">36.19</td>
-<td align="right">93</td>
-<td align="right">122</td>
+<td align="right">0.89</td>
+<td align="right">31.74</td>
+<td align="right">35.61</td>
+<td align="right">92</td>
+<td align="right">120</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">LPG</td>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
-<td align="right">0.27</td>
-<td align="right">7.86</td>
-<td align="right">29.33</td>
-<td align="right">56</td>
-<td align="right">60</td>
+<td align="right">0.25</td>
+<td align="right">7.82</td>
+<td align="right">30.71</td>
+<td align="right">55</td>
+<td align="right">59</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">LPG</td>
 <td align="left">SHO_05</td>
 <td align="left">SHO</td>
@@ -930,7 +974,7 @@ kable(stats_grouped_by_hhid_stove, digits=2)</code></pre>
 <td align="right">64</td>
 <td align="right">76</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">LPG</td>
 <td align="left">SHO_06</td>
 <td align="left">SHO</td>
@@ -973,50 +1017,50 @@ kable(stats_by_stove_group, digits=2)</code></pre>
 <tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">AKO</td>
-<td align="right">1.24</td>
-<td align="right">1.08</td>
-<td align="right">0.93</td>
-<td align="right">39.30</td>
-<td align="right">36.04</td>
-<td align="right">24.91</td>
-<td align="right">47.60</td>
-<td align="right">5</td>
+<td align="right">1.16</td>
+<td align="right">1.02</td>
+<td align="right">0.86</td>
+<td align="right">39.14</td>
+<td align="right">37.15</td>
+<td align="right">22.39</td>
+<td align="right">40.00</td>
+<td align="right">6</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">MUS</td>
-<td align="right">0.78</td>
+<td align="right">0.77</td>
 <td align="right">0.68</td>
 <td align="right">0.46</td>
-<td align="right">29.25</td>
+<td align="right">29.09</td>
 <td align="right">34.43</td>
-<td align="right">19.93</td>
-<td align="right">85.56</td>
+<td align="right">19.88</td>
+<td align="right">85.22</td>
 <td align="right">9</td>
 </tr>
 <tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">SHO</td>
-<td align="right">0.61</td>
+<td align="right">0.60</td>
 <td align="right">0.65</td>
 <td align="right">0.26</td>
-<td align="right">19.65</td>
-<td align="right">19.68</td>
-<td align="right">9.80</td>
-<td align="right">71.50</td>
+<td align="right">19.73</td>
+<td align="right">19.79</td>
+<td align="right">10.08</td>
+<td align="right">70.83</td>
 <td align="right">6</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">AKO</td>
-<td align="right">1.38</td>
-<td align="right">1.23</td>
-<td align="right">0.62</td>
-<td align="right">101.88</td>
-<td align="right">73.85</td>
-<td align="right">63.22</td>
-<td align="right">49.00</td>
-<td align="right">6</td>
+<td align="right">1.15</td>
+<td align="right">0.97</td>
+<td align="right">0.67</td>
+<td align="right">82.67</td>
+<td align="right">62.94</td>
+<td align="right">64.13</td>
+<td align="right">39.38</td>
+<td align="right">8</td>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
@@ -1024,34 +1068,34 @@ kable(stats_by_stove_group, digits=2)</code></pre>
 <td align="right">1.62</td>
 <td align="right">1.82</td>
 <td align="right">0.86</td>
-<td align="right">114.69</td>
+<td align="right">114.49</td>
 <td align="right">78.64</td>
-<td align="right">68.40</td>
-<td align="right">84.44</td>
+<td align="right">68.57</td>
+<td align="right">84.22</td>
 <td align="right">9</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO</td>
-<td align="right">1.46</td>
+<td align="right">1.47</td>
 <td align="right">1.50</td>
-<td align="right">1.33</td>
-<td align="right">107.01</td>
+<td align="right">1.36</td>
+<td align="right">105.86</td>
 <td align="right">94.38</td>
-<td align="right">104.45</td>
-<td align="right">64.50</td>
+<td align="right">102.80</td>
+<td align="right">65.67</td>
 <td align="right">6</td>
 </tr>
 <tr class="odd">
 <td align="left">LPG</td>
 <td align="left">AKO</td>
-<td align="right">0.90</td>
-<td align="right">0.90</td>
+<td align="right">0.89</td>
+<td align="right">0.89</td>
 <td align="right">NA</td>
-<td align="right">32.69</td>
-<td align="right">32.69</td>
+<td align="right">31.74</td>
+<td align="right">31.74</td>
 <td align="right">NA</td>
-<td align="right">93.00</td>
+<td align="right">92.00</td>
 <td align="right">1</td>
 </tr>
 <tr class="even">
@@ -1059,11 +1103,11 @@ kable(stats_by_stove_group, digits=2)</code></pre>
 <td align="left">SHO</td>
 <td align="right">0.60</td>
 <td align="right">0.53</td>
-<td align="right">0.37</td>
-<td align="right">24.53</td>
+<td align="right">0.38</td>
+<td align="right">24.51</td>
 <td align="right">19.84</td>
-<td align="right">19.44</td>
-<td align="right">66.67</td>
+<td align="right">19.45</td>
+<td align="right">66.33</td>
 <td align="right">3</td>
 </tr>
 </tbody>
@@ -1096,29 +1140,29 @@ kable(stats_by_stove, digits=2)</code></pre>
 <tr class="odd">
 <td align="left">CleanCook</td>
 <td align="right">0.84</td>
-<td align="right">0.78</td>
-<td align="right">0.59</td>
-<td align="right">28.88</td>
-<td align="right">29.95</td>
-<td align="right">19.46</td>
+<td align="right">0.77</td>
+<td align="right">0.58</td>
+<td align="right">29.29</td>
+<td align="right">31.45</td>
+<td align="right">19.11</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
-<td align="right">1.50</td>
-<td align="right">1.38</td>
-<td align="right">0.92</td>
-<td align="right">108.83</td>
-<td align="right">75.42</td>
-<td align="right">75.03</td>
+<td align="right">1.42</td>
+<td align="right">1.27</td>
+<td align="right">0.93</td>
+<td align="right">101.17</td>
+<td align="right">74.62</td>
+<td align="right">74.99</td>
 </tr>
 <tr class="odd">
 <td align="left">LPG</td>
-<td align="right">0.68</td>
-<td align="right">0.72</td>
+<td align="right">0.67</td>
+<td align="right">0.71</td>
 <td align="right">0.34</td>
-<td align="right">26.57</td>
-<td align="right">26.27</td>
-<td align="right">16.39</td>
+<td align="right">26.32</td>
+<td align="right">25.79</td>
+<td align="right">16.29</td>
 </tr>
 </tbody>
 </table>
@@ -1189,10 +1233,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">AKO_04</td>
 <td align="left">AKO</td>
 <td align="left">Dec-17</td>
-<td align="right">0.09</td>
-<td align="right">1.74</td>
-<td align="right">20.00</td>
-<td align="right">23</td>
+<td align="right">0.00</td>
+<td align="right">0.00</td>
+<td align="right">NaN</td>
+<td align="right">22</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
@@ -1236,6 +1280,26 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
+<td align="left">AKO_05B</td>
+<td align="left">AKO</td>
+<td align="left">Feb-18</td>
+<td align="right">1.00</td>
+<td align="right">30.00</td>
+<td align="right">30.00</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">CleanCook</td>
+<td align="left">AKO_05B</td>
+<td align="left">AKO</td>
+<td align="left">Jan-18</td>
+<td align="right">0.67</td>
+<td align="right">41.67</td>
+<td align="right">62.50</td>
+<td align="right">6</td>
+</tr>
+<tr class="even">
+<td align="left">CleanCook</td>
 <td align="left">AKO_09</td>
 <td align="left">AKO</td>
 <td align="left">Dec-17</td>
@@ -1258,23 +1322,13 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">CleanCook</td>
 <td align="left">AKO_09</td>
 <td align="left">AKO</td>
-<td align="left">Jan-18</td>
-<td align="right">1.00</td>
-<td align="right">65.00</td>
-<td align="right">65.00</td>
-<td align="right">2</td>
-</tr>
-<tr class="odd">
-<td align="left">CleanCook</td>
-<td align="left">AKO_09</td>
-<td align="left">AKO</td>
 <td align="left">Nov-17</td>
 <td align="right">0.00</td>
 <td align="right">0.00</td>
 <td align="right">NaN</td>
-<td align="right">2</td>
+<td align="right">1</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">AKO_09</td>
 <td align="left">AKO</td>
@@ -1284,7 +1338,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">30.00</td>
 <td align="right">11</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">AKO_10</td>
 <td align="left">AKO</td>
@@ -1294,7 +1348,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">25.91</td>
 <td align="right">26</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">AKO_10</td>
 <td align="left">AKO</td>
@@ -1304,7 +1358,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">42.50</td>
 <td align="right">14</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">AKO_10</td>
 <td align="left">AKO</td>
@@ -1314,7 +1368,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">30.00</td>
 <td align="right">12</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">AKO_10</td>
 <td align="left">AKO</td>
@@ -1322,19 +1376,19 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">0.00</td>
 <td align="right">0.00</td>
 <td align="right">NaN</td>
-<td align="right">2</td>
+<td align="right">1</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">AKO_10</td>
 <td align="left">AKO</td>
 <td align="left">Oct-17</td>
-<td align="right">2.13</td>
-<td align="right">79.33</td>
-<td align="right">37.19</td>
-<td align="right">15</td>
+<td align="right">2.21</td>
+<td align="right">81.43</td>
+<td align="right">36.77</td>
+<td align="right">14</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">MUS_02</td>
 <td align="left">MUS</td>
@@ -1343,16 +1397,6 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">0.00</td>
 <td align="right">NaN</td>
 <td align="right">31</td>
-</tr>
-<tr class="odd">
-<td align="left">CleanCook</td>
-<td align="left">MUS_02</td>
-<td align="left">MUS</td>
-<td align="left">Feb-18</td>
-<td align="right">1.00</td>
-<td align="right">30.00</td>
-<td align="right">30.00</td>
-<td align="right">1</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
@@ -1499,10 +1543,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">MUS_05</td>
 <td align="left">MUS</td>
 <td align="left">Jan-18</td>
-<td align="right">1.50</td>
-<td align="right">33.33</td>
-<td align="right">22.22</td>
-<td align="right">6</td>
+<td align="right">0.75</td>
+<td align="right">15.00</td>
+<td align="right">20.00</td>
+<td align="right">4</td>
 </tr>
 <tr class="odd">
 <td align="left">CleanCook</td>
@@ -1829,10 +1873,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">SHO_02</td>
 <td align="left">SHO</td>
 <td align="left">Feb-18</td>
-<td align="right">0.33</td>
-<td align="right">3.33</td>
-<td align="right">10.00</td>
-<td align="right">3</td>
+<td align="right">0.00</td>
+<td align="right">0.00</td>
+<td align="right">NaN</td>
+<td align="right">2</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
@@ -1969,10 +2013,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">SHO_07</td>
 <td align="left">SHO</td>
 <td align="left">Dec-17</td>
-<td align="right">0.56</td>
-<td align="right">13.33</td>
-<td align="right">24.00</td>
-<td align="right">9</td>
+<td align="right">0.43</td>
+<td align="right">14.29</td>
+<td align="right">33.33</td>
+<td align="right">7</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
@@ -2039,10 +2083,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">SHO_09</td>
 <td align="left">SHO</td>
 <td align="left">Nov-17</td>
-<td align="right">0.12</td>
-<td align="right">2.50</td>
-<td align="right">20.00</td>
-<td align="right">16</td>
+<td align="right">0.00</td>
+<td align="right">0.00</td>
+<td align="right">NaN</td>
+<td align="right">15</td>
 </tr>
 <tr class="odd">
 <td align="left">CleanCook</td>
@@ -2072,6 +2116,26 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">1.45</td>
 <td align="right">82.73</td>
 <td align="right">56.88</td>
+<td align="right">11</td>
+</tr>
+<tr class="even">
+<td align="left">Kerosene</td>
+<td align="left">AKO_02B</td>
+<td align="left">AKO</td>
+<td align="left">Feb-18</td>
+<td align="right">0.00</td>
+<td align="right">0.00</td>
+<td align="right">NaN</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">Kerosene</td>
+<td align="left">AKO_02B</td>
+<td align="left">AKO</td>
+<td align="left">Jan-18</td>
+<td align="right">0.64</td>
+<td align="right">33.64</td>
+<td align="right">52.86</td>
 <td align="right">11</td>
 </tr>
 <tr class="even">
@@ -2146,6 +2210,26 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
+<td align="left">AKO_05B</td>
+<td align="left">AKO</td>
+<td align="left">Feb-18</td>
+<td align="right">1.00</td>
+<td align="right">30.00</td>
+<td align="right">30.00</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="left">Kerosene</td>
+<td align="left">AKO_05B</td>
+<td align="left">AKO</td>
+<td align="left">Jan-18</td>
+<td align="right">0.36</td>
+<td align="right">20.00</td>
+<td align="right">55.00</td>
+<td align="right">11</td>
+</tr>
+<tr class="odd">
+<td align="left">Kerosene</td>
 <td align="left">AKO_06B</td>
 <td align="left">AKO</td>
 <td align="left">Feb-18</td>
@@ -2189,10 +2273,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">AKO_09</td>
 <td align="left">AKO</td>
 <td align="left">Jan-18</td>
-<td align="right">0.72</td>
-<td align="right">61.11</td>
-<td align="right">84.62</td>
-<td align="right">18</td>
+<td align="right">0.69</td>
+<td align="right">63.12</td>
+<td align="right">91.82</td>
+<td align="right">16</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
@@ -2202,7 +2286,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">0.00</td>
 <td align="right">0.00</td>
 <td align="right">NaN</td>
-<td align="right">12</td>
+<td align="right">11</td>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
@@ -2249,10 +2333,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">AKO_10</td>
 <td align="left">AKO</td>
 <td align="left">Nov-17</td>
-<td align="right">3.33</td>
-<td align="right">225.83</td>
-<td align="right">67.75</td>
-<td align="right">12</td>
+<td align="right">3.45</td>
+<td align="right">225.45</td>
+<td align="right">65.26</td>
+<td align="right">11</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
@@ -2348,23 +2432,13 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">Kerosene</td>
 <td align="left">MUS_04</td>
 <td align="left">MUS</td>
-<td align="left">Feb-18</td>
-<td align="right">1.00</td>
-<td align="right">200.00</td>
-<td align="right">200.00</td>
-<td align="right">1</td>
-</tr>
-<tr class="even">
-<td align="left">Kerosene</td>
-<td align="left">MUS_04</td>
-<td align="left">MUS</td>
 <td align="left">Jan-18</td>
 <td align="right">0.93</td>
 <td align="right">80.00</td>
 <td align="right">85.71</td>
 <td align="right">30</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_04</td>
 <td align="left">MUS</td>
@@ -2374,7 +2448,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">44.00</td>
 <td align="right">18</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_04</td>
 <td align="left">MUS</td>
@@ -2384,7 +2458,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">52.22</td>
 <td align="right">5</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_05</td>
 <td align="left">MUS</td>
@@ -2394,7 +2468,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">38.75</td>
 <td align="right">8</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_05</td>
 <td align="left">MUS</td>
@@ -2404,7 +2478,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">40.00</td>
 <td align="right">2</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_05</td>
 <td align="left">MUS</td>
@@ -2414,7 +2488,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">39.60</td>
 <td align="right">24</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_05</td>
 <td align="left">MUS</td>
@@ -2424,7 +2498,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">45.68</td>
 <td align="right">24</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_05</td>
 <td align="left">MUS</td>
@@ -2434,7 +2508,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">56.92</td>
 <td align="right">8</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_06</td>
 <td align="left">MUS</td>
@@ -2444,7 +2518,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">106.27</td>
 <td align="right">27</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_06</td>
 <td align="left">MUS</td>
@@ -2454,7 +2528,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">77.78</td>
 <td align="right">14</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_06</td>
 <td align="left">MUS</td>
@@ -2464,7 +2538,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">106.67</td>
 <td align="right">27</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_06</td>
 <td align="left">MUS</td>
@@ -2474,7 +2548,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">109.91</td>
 <td align="right">28</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_06</td>
 <td align="left">MUS</td>
@@ -2484,7 +2558,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">109.32</td>
 <td align="right">13</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_07</td>
 <td align="left">MUS</td>
@@ -2494,7 +2568,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">46.00</td>
 <td align="right">20</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_07</td>
 <td align="left">MUS</td>
@@ -2504,7 +2578,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">52.00</td>
 <td align="right">13</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_07</td>
 <td align="left">MUS</td>
@@ -2514,17 +2588,17 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">44.00</td>
 <td align="right">11</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_07</td>
 <td align="left">MUS</td>
 <td align="left">Nov-17</td>
-<td align="right">1.67</td>
-<td align="right">116.67</td>
-<td align="right">70.00</td>
-<td align="right">9</td>
+<td align="right">1.75</td>
+<td align="right">125.00</td>
+<td align="right">71.43</td>
+<td align="right">8</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_07</td>
 <td align="left">MUS</td>
@@ -2534,7 +2608,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">56.67</td>
 <td align="right">18</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_08</td>
 <td align="left">MUS</td>
@@ -2544,7 +2618,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">51.11</td>
 <td align="right">19</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_08</td>
 <td align="left">MUS</td>
@@ -2554,7 +2628,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">70.80</td>
 <td align="right">16</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_08</td>
 <td align="left">MUS</td>
@@ -2564,7 +2638,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">71.38</td>
 <td align="right">25</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_08</td>
 <td align="left">MUS</td>
@@ -2574,7 +2648,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">63.04</td>
 <td align="right">12</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_09</td>
 <td align="left">MUS</td>
@@ -2584,7 +2658,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">75.90</td>
 <td align="right">29</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_09</td>
 <td align="left">MUS</td>
@@ -2594,7 +2668,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">137.69</td>
 <td align="right">13</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_09</td>
 <td align="left">MUS</td>
@@ -2604,7 +2678,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">80.75</td>
 <td align="right">29</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_09</td>
 <td align="left">MUS</td>
@@ -2614,7 +2688,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">27.00</td>
 <td align="right">28</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_09</td>
 <td align="left">MUS</td>
@@ -2624,7 +2698,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">16.00</td>
 <td align="right">22</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_10</td>
 <td align="left">MUS</td>
@@ -2634,7 +2708,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">69.58</td>
 <td align="right">30</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_10</td>
 <td align="left">MUS</td>
@@ -2644,7 +2718,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">57.50</td>
 <td align="right">2</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_10</td>
 <td align="left">MUS</td>
@@ -2654,7 +2728,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">68.44</td>
 <td align="right">27</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">MUS_10</td>
 <td align="left">MUS</td>
@@ -2664,7 +2738,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">75.60</td>
 <td align="right">30</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">MUS_10</td>
 <td align="left">MUS</td>
@@ -2674,7 +2748,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">57.50</td>
 <td align="right">3</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
@@ -2684,7 +2758,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">74.48</td>
 <td align="right">16</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
@@ -2694,7 +2768,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">47.73</td>
 <td align="right">15</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
@@ -2704,7 +2778,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">63.68</td>
 <td align="right">19</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
@@ -2714,7 +2788,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">51.60</td>
 <td align="right">16</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
@@ -2724,7 +2798,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">70.27</td>
 <td align="right">18</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO_02</td>
 <td align="left">SHO</td>
@@ -2734,7 +2808,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">99.00</td>
 <td align="right">12</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_02</td>
 <td align="left">SHO</td>
@@ -2744,7 +2818,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">109.17</td>
 <td align="right">15</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO_02</td>
 <td align="left">SHO</td>
@@ -2754,7 +2828,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">91.85</td>
 <td align="right">19</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_02</td>
 <td align="left">SHO</td>
@@ -2764,7 +2838,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">89.43</td>
 <td align="right">21</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO_02</td>
 <td align="left">SHO</td>
@@ -2774,7 +2848,7 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">81.67</td>
 <td align="right">8</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_05</td>
 <td align="left">SHO</td>
@@ -2784,15 +2858,25 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="right">63.08</td>
 <td align="right">6</td>
 </tr>
+<tr class="even">
+<td align="left">Kerosene</td>
+<td align="left">SHO_05</td>
+<td align="left">SHO</td>
+<td align="left">Feb-18</td>
+<td align="right">4.00</td>
+<td align="right">212.86</td>
+<td align="right">53.21</td>
+<td align="right">7</td>
+</tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO_05</td>
 <td align="left">SHO</td>
 <td align="left">Jan-18</td>
-<td align="right">1.86</td>
-<td align="right">205.71</td>
-<td align="right">110.77</td>
-<td align="right">7</td>
+<td align="right">2.25</td>
+<td align="right">240.00</td>
+<td align="right">106.67</td>
+<td align="right">8</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
@@ -2819,10 +2903,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">SHO_06</td>
 <td align="left">SHO</td>
 <td align="left">Dec-17</td>
-<td align="right">0.05</td>
-<td align="right">5.00</td>
-<td align="right">100.00</td>
-<td align="right">20</td>
+<td align="right">0.00</td>
+<td align="right">0.00</td>
+<td align="right">NaN</td>
+<td align="right">19</td>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
@@ -2969,10 +3053,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">AKO_04</td>
 <td align="left">AKO</td>
 <td align="left">Nov-17</td>
-<td align="right">1.50</td>
-<td align="right">70.00</td>
-<td align="right">46.67</td>
-<td align="right">2</td>
+<td align="right">1.00</td>
+<td align="right">20.00</td>
+<td align="right">20.00</td>
+<td align="right">1</td>
 </tr>
 <tr class="even">
 <td align="left">LPG</td>
@@ -2989,10 +3073,10 @@ kable(stats_grouped_by_hhid_stove_month, digits=2)</code></pre>
 <td align="left">SHO_01</td>
 <td align="left">SHO</td>
 <td align="left">Dec-17</td>
-<td align="right">1.25</td>
-<td align="right">32.50</td>
-<td align="right">26.00</td>
-<td align="right">8</td>
+<td align="right">1.29</td>
+<td align="right">35.71</td>
+<td align="right">27.78</td>
+<td align="right">7</td>
 </tr>
 <tr class="even">
 <td align="left">LPG</td>
@@ -3138,40 +3222,40 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">CleanCook</td>
 <td align="left">AKO</td>
 <td align="left">Dec-17</td>
-<td align="right">0.54</td>
+<td align="right">0.51</td>
 <td align="right">0.68</td>
-<td align="right">0.40</td>
-<td align="right">20.17</td>
+<td align="right">0.45</td>
+<td align="right">19.59</td>
 <td align="right">21.92</td>
-<td align="right">17.62</td>
+<td align="right">18.53</td>
 <td align="right">3</td>
-<td align="right">22.67</td>
+<td align="right">22.33</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">AKO</td>
 <td align="left">Feb-18</td>
-<td align="right">1.44</td>
-<td align="right">0.86</td>
-<td align="right">1.47</td>
-<td align="right">39.74</td>
-<td align="right">36.43</td>
-<td align="right">32.35</td>
-<td align="right">5</td>
-<td align="right">8.60</td>
+<td align="right">1.37</td>
+<td align="right">0.93</td>
+<td align="right">1.33</td>
+<td align="right">38.12</td>
+<td align="right">33.21</td>
+<td align="right">29.21</td>
+<td align="right">6</td>
+<td align="right">7.50</td>
 </tr>
 <tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">AKO</td>
 <td align="left">Jan-18</td>
-<td align="right">1.18</td>
+<td align="right">1.11</td>
 <td align="right">1.17</td>
-<td align="right">0.91</td>
-<td align="right">43.27</td>
+<td align="right">0.94</td>
+<td align="right">38.61</td>
 <td align="right">39.09</td>
-<td align="right">29.94</td>
+<td align="right">27.42</td>
 <td align="right">5</td>
-<td align="right">13.20</td>
+<td align="right">14.00</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
@@ -3184,20 +3268,20 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="right">0.00</td>
 <td align="right">0.00</td>
 <td align="right">3</td>
-<td align="right">5.33</td>
+<td align="right">4.67</td>
 </tr>
 <tr class="odd">
 <td align="left">CleanCook</td>
 <td align="left">AKO</td>
 <td align="left">Oct-17</td>
-<td align="right">1.51</td>
+<td align="right">1.54</td>
 <td align="right">2.09</td>
-<td align="right">1.04</td>
-<td align="right">50.86</td>
+<td align="right">1.06</td>
+<td align="right">51.56</td>
 <td align="right">62.73</td>
-<td align="right">35.91</td>
+<td align="right">36.75</td>
 <td align="right">3</td>
-<td align="right">15.00</td>
+<td align="right">14.67</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
@@ -3216,27 +3300,27 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">CleanCook</td>
 <td align="left">MUS</td>
 <td align="left">Feb-18</td>
-<td align="right">0.92</td>
-<td align="right">0.80</td>
-<td align="right">0.96</td>
-<td align="right">27.81</td>
-<td align="right">18.00</td>
-<td align="right">33.06</td>
-<td align="right">7</td>
-<td align="right">8.43</td>
+<td align="right">0.91</td>
+<td align="right">0.57</td>
+<td align="right">1.05</td>
+<td align="right">27.44</td>
+<td align="right">12.33</td>
+<td align="right">36.20</td>
+<td align="right">6</td>
+<td align="right">9.67</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">MUS</td>
 <td align="left">Jan-18</td>
-<td align="right">0.66</td>
+<td align="right">0.58</td>
 <td align="right">0.50</td>
-<td align="right">0.72</td>
-<td align="right">19.98</td>
+<td align="right">0.65</td>
+<td align="right">17.94</td>
 <td align="right">7.50</td>
-<td align="right">23.58</td>
+<td align="right">23.07</td>
 <td align="right">9</td>
-<td align="right">20.56</td>
+<td align="right">20.33</td>
 </tr>
 <tr class="odd">
 <td align="left">CleanCook</td>
@@ -3268,27 +3352,27 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">CleanCook</td>
 <td align="left">SHO</td>
 <td align="left">Dec-17</td>
-<td align="right">0.50</td>
-<td align="right">0.46</td>
+<td align="right">0.48</td>
+<td align="right">0.39</td>
 <td align="right">0.28</td>
-<td align="right">14.05</td>
-<td align="right">10.33</td>
+<td align="right">14.21</td>
+<td align="right">10.81</td>
 <td align="right">9.16</td>
 <td align="right">6</td>
-<td align="right">17.83</td>
+<td align="right">17.50</td>
 </tr>
 <tr class="even">
 <td align="left">CleanCook</td>
 <td align="left">SHO</td>
 <td align="left">Feb-18</td>
-<td align="right">0.29</td>
-<td align="right">0.33</td>
-<td align="right">0.28</td>
-<td align="right">5.96</td>
-<td align="right">3.33</td>
-<td align="right">6.81</td>
+<td align="right">0.22</td>
+<td align="right">0.00</td>
+<td align="right">0.31</td>
+<td align="right">5.29</td>
+<td align="right">0.00</td>
+<td align="right">7.28</td>
 <td align="right">5</td>
-<td align="right">9.20</td>
+<td align="right">9.00</td>
 </tr>
 <tr class="odd">
 <td align="left">CleanCook</td>
@@ -3307,14 +3391,14 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">CleanCook</td>
 <td align="left">SHO</td>
 <td align="left">Nov-17</td>
-<td align="right">0.66</td>
+<td align="right">0.64</td>
 <td align="right">0.67</td>
-<td align="right">0.33</td>
-<td align="right">23.45</td>
+<td align="right">0.37</td>
+<td align="right">23.04</td>
 <td align="right">24.44</td>
-<td align="right">13.74</td>
+<td align="right">14.52</td>
 <td align="right">6</td>
-<td align="right">19.83</td>
+<td align="right">19.67</td>
 </tr>
 <tr class="odd">
 <td align="left">CleanCook</td>
@@ -3346,40 +3430,40 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">Kerosene</td>
 <td align="left">AKO</td>
 <td align="left">Feb-18</td>
-<td align="right">1.12</td>
+<td align="right">0.96</td>
 <td align="right">1.00</td>
 <td align="right">0.75</td>
-<td align="right">80.12</td>
-<td align="right">78.57</td>
-<td align="right">60.30</td>
-<td align="right">6</td>
-<td align="right">6.00</td>
+<td align="right">63.84</td>
+<td align="right">48.57</td>
+<td align="right">59.75</td>
+<td align="right">8</td>
+<td align="right">4.88</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">AKO</td>
 <td align="left">Jan-18</td>
-<td align="right">1.46</td>
-<td align="right">1.37</td>
-<td align="right">0.58</td>
-<td align="right">114.73</td>
-<td align="right">76.36</td>
-<td align="right">71.19</td>
-<td align="right">6</td>
-<td align="right">18.33</td>
+<td align="right">1.22</td>
+<td align="right">1.18</td>
+<td align="right">0.67</td>
+<td align="right">93.01</td>
+<td align="right">66.56</td>
+<td align="right">72.60</td>
+<td align="right">8</td>
+<td align="right">16.25</td>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">AKO</td>
 <td align="left">Nov-17</td>
-<td align="right">1.35</td>
+<td align="right">1.39</td>
 <td align="right">0.73</td>
-<td align="right">1.75</td>
-<td align="right">86.79</td>
+<td align="right">1.82</td>
+<td align="right">86.67</td>
 <td align="right">34.55</td>
-<td align="right">121.65</td>
+<td align="right">121.43</td>
 <td align="right">3</td>
-<td align="right">11.67</td>
+<td align="right">11.00</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
@@ -3411,14 +3495,14 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">Kerosene</td>
 <td align="left">MUS</td>
 <td align="left">Feb-18</td>
-<td align="right">1.74</td>
-<td align="right">1.28</td>
-<td align="right">1.19</td>
-<td align="right">125.26</td>
-<td align="right">124.16</td>
-<td align="right">68.37</td>
-<td align="right">8</td>
-<td align="right">9.62</td>
+<td align="right">1.84</td>
+<td align="right">1.56</td>
+<td align="right">1.24</td>
+<td align="right">114.58</td>
+<td align="right">110.62</td>
+<td align="right">66.25</td>
+<td align="right">7</td>
+<td align="right">10.86</td>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
@@ -3437,14 +3521,14 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">Kerosene</td>
 <td align="left">MUS</td>
 <td align="left">Nov-17</td>
-<td align="right">1.64</td>
-<td align="right">1.67</td>
-<td align="right">1.29</td>
-<td align="right">121.54</td>
+<td align="right">1.65</td>
+<td align="right">1.75</td>
+<td align="right">1.30</td>
+<td align="right">122.46</td>
 <td align="right">116.67</td>
-<td align="right">136.35</td>
+<td align="right">136.34</td>
 <td align="right">9</td>
-<td align="right">20.67</td>
+<td align="right">20.56</td>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
@@ -3463,40 +3547,40 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">Kerosene</td>
 <td align="left">SHO</td>
 <td align="left">Dec-17</td>
-<td align="right">1.06</td>
+<td align="right">1.05</td>
 <td align="right">1.17</td>
-<td align="right">0.94</td>
-<td align="right">78.61</td>
+<td align="right">0.96</td>
+<td align="right">77.78</td>
 <td align="right">82.50</td>
-<td align="right">74.80</td>
+<td align="right">75.80</td>
 <td align="right">6</td>
-<td align="right">12.83</td>
+<td align="right">12.67</td>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
 <td align="left">SHO</td>
 <td align="left">Feb-18</td>
-<td align="right">0.69</td>
-<td align="right">0.65</td>
-<td align="right">0.61</td>
-<td align="right">43.08</td>
-<td align="right">42.50</td>
-<td align="right">42.14</td>
-<td align="right">4</td>
-<td align="right">11.25</td>
+<td align="right">1.35</td>
+<td align="right">0.80</td>
+<td align="right">1.57</td>
+<td align="right">77.04</td>
+<td align="right">70.00</td>
+<td align="right">84.24</td>
+<td align="right">5</td>
+<td align="right">10.40</td>
 </tr>
 <tr class="even">
 <td align="left">Kerosene</td>
 <td align="left">SHO</td>
 <td align="left">Jan-18</td>
-<td align="right">1.67</td>
-<td align="right">1.64</td>
-<td align="right">0.30</td>
-<td align="right">140.64</td>
+<td align="right">1.77</td>
+<td align="right">1.71</td>
+<td align="right">0.42</td>
+<td align="right">149.21</td>
 <td align="right">128.95</td>
-<td align="right">45.65</td>
+<td align="right">62.17</td>
 <td align="right">4</td>
-<td align="right">16.00</td>
+<td align="right">16.25</td>
 </tr>
 <tr class="odd">
 <td align="left">Kerosene</td>
@@ -3567,14 +3651,14 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">LPG</td>
 <td align="left">AKO</td>
 <td align="left">Nov-17</td>
-<td align="right">1.50</td>
-<td align="right">1.50</td>
+<td align="right">1.00</td>
+<td align="right">1.00</td>
 <td align="right">NA</td>
-<td align="right">70.00</td>
-<td align="right">70.00</td>
+<td align="right">20.00</td>
+<td align="right">20.00</td>
 <td align="right">NA</td>
 <td align="right">1</td>
-<td align="right">2.00</td>
+<td align="right">1.00</td>
 </tr>
 <tr class="odd">
 <td align="left">LPG</td>
@@ -3593,14 +3677,14 @@ kable(stats_by_stove_group_month, digits=2)</code></pre>
 <td align="left">LPG</td>
 <td align="left">SHO</td>
 <td align="left">Dec-17</td>
-<td align="right">0.84</td>
+<td align="right">0.85</td>
 <td align="right">1.19</td>
-<td align="right">0.67</td>
-<td align="right">26.26</td>
-<td align="right">32.50</td>
-<td align="right">21.82</td>
+<td align="right">0.68</td>
+<td align="right">27.33</td>
+<td align="right">35.71</td>
+<td align="right">22.35</td>
 <td align="right">3</td>
-<td align="right">19.67</td>
+<td align="right">19.33</td>
 </tr>
 <tr class="odd">
 <td align="left">LPG</td>
@@ -3800,7 +3884,7 @@ plotDayofWeekFunc &lt;- function(x,y, na.rm = TRUE, ...) {
 }
 
 for (i in 1:dim(stove_group_codes)[1]){
-  plotDayofWeekFunc(ok_cooking_events,as.character(stove_group_codes$group[i]))
+  g5 &lt;- plotDayofWeekFunc(ok_cooking_events,as.character(stove_group_codes$group[i]))
 }</code></pre>
 <pre class="r"><code>#Plot days sampled per file
 g6&lt;-  dplyr::distinct(ok_cooking_events_padded,fullsumsarizer_filename,logging_duration_days,stove_descriptions) %&gt;%
@@ -3841,21 +3925,22 @@ for (i in 1:dim(stove_group_codes)[1]){
 
 plotStoveDaysFunc &lt;- function(ok_cooking_events_padded, na.rm = TRUE, ...) {
   #Calculate percent stove-days.
-  g7 &lt;-dplyr::group_by(ok_cooking_events_padded,day_month_year,stove_descriptions) %&gt;%
+  g7 &lt;-dplyr::group_by(ok_cooking_events_padded,day_month_year,stove_descriptions,group) %&gt;%
         dplyr::distinct(HHID,stove_descriptions,day_month_year, .keep_all = TRUE) %&gt;% #No duplicate events from the same hh contributing to stove-days.
-        dplyr::mutate(days_used_day_stove_grouped = 100*sum(use_flag, na.rm=TRUE)/sum(!use_flag, na.rm=TRUE)) %&gt;%
+        dplyr::mutate(days_used_day_stove_grouped = 100*sum(use_flag, na.rm=TRUE)/(sum(use_flag, na.rm=TRUE)+sum(!use_flag, na.rm=TRUE))) %&gt;%
         ggplot(aes(x=day_month_year, y = days_used_day_stove_grouped,color = stove_descriptions)) + 
-      geom_point() +# geom_smooth(method=&#39;lm&#39;,formula=y~x) +
-      #facet_grid(~group,scales = &quot;free&quot;, space = &quot;free&quot;) + 
+      geom_point() + geom_smooth() + #method=&#39;lm&#39;,formula=y~x) +
+      facet_grid(~group,scales = &quot;free&quot;, space = &quot;free&quot;) + 
       labs(y=&quot;% stove days&quot;,x=&quot;&quot;) + 
       theme(legend.title = element_blank()) + 
       theme(axis.text.x = element_text(angle = 60, hjust = 1))
     g7
           #ggsave(g7,filename=paste(&quot;../figures/PercentStoveDaysByGroup.png&quot;,sep=&quot;&quot;))
 }
-plotStoveDaysFunc(ok_cooking_events_padded)</code></pre>
-<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-2.png" width="576" /></p>
-<pre class="r"><code>#Time of day trend.  Based on start time, change it to middle of event?  Remove groups with less than 5 hh&#39;s?
+g7 &lt;- plotStoveDaysFunc(ok_cooking_events_padded)
+
+
+#Time of day trend.  Based on start time, change it to middle of event?  Remove groups with less than 5 hh&#39;s?
 #Use unpadded set to get time of day of event starts.
 plotDensFunc &lt;- function(x,y, na.rm = TRUE, ...) {
     g8 &lt;- ggplot(x, aes(start_hour, fill = stove_descriptions, 
@@ -3870,7 +3955,7 @@ plotDensFunc &lt;- function(x,y, na.rm = TRUE, ...) {
 
 for (i in 1:dim(stove_group_codes)[1]){
   ok_cooking_events_temp &lt;- dplyr::filter(ok_cooking_events,grepl(as.character(stove_group_codes$group[i]),filename))
-  plotDensFunc(ok_cooking_events_temp,as.character(stove_group_codes$group[i]))
+  g8 &lt;- plotDensFunc(ok_cooking_events_temp,as.character(stove_group_codes$group[i]))
 }
 
 
@@ -3886,7 +3971,7 @@ g9&lt;- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,dur
            stat = &#39;identity&#39;, 
            position = &quot;fill&quot;, size=0)
 g9</code></pre>
-<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-3.png" width="576" /></p>
+<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-2.png" width="576" /></p>
 <pre class="r"><code>#Daily usage fraction by group. Includes all hh.  We could filter out houses with fewer than x sums to reduce any potential bias from a certain sum type burning up or something.
 g10&lt;- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,duration_minutes) %&gt;%
   thicken(&#39;day&#39;, col = &#39;day&#39;) %&gt;% 
@@ -3901,7 +3986,7 @@ g10&lt;- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,du
   labs(y=&quot;Usage fraction&quot;,x=&quot;&quot;)  +
   theme(legend.title = element_blank())
 g10</code></pre>
-<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-4.png" width="576" /></p>
+<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-3.png" width="576" /></p>
 <pre class="r"><code>#Overall usage fraction by group.  
  g11&lt;- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,duration_minutes) %&gt;%
   group_by(stove_descriptions) %&gt;%
@@ -3917,7 +4002,7 @@ g10</code></pre>
   labs(y=&quot;Usage fraction&quot;,x=&quot;&quot;)  +
   theme(legend.title = element_blank())
 g11</code></pre>
-<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-5.png" width="576" /></p>
+<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-4.png" width="576" /></p>
 <pre class="r"><code>#ggsave(filename=&quot;../figures/Overall_usage_fraction.png&quot;, plot=g12,width = 6, height = 4)
 
 
@@ -3932,12 +4017,12 @@ g11</code></pre>
   labs(y=&quot;Minutes per day&quot;,x=&quot;&quot;) +
   ylim(0,200)
  g12</code></pre>
-<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-6.png" width="576" /></p>
+<p><img src="/Users/ricardopiedrahita/Dropbox/2016%20ADB%20RFP%20Nigeria/SUMS%20processing/SUMS%20analysis%20R%20code/figures/plot_stove_usage3-5.png" width="576" /></p>
 <pre class="r"><code>#ggsave(filename=&quot;../figures/Overall_usage_fraction.png&quot;, plot=g12,width = 6, height = 4)</code></pre>
 </div>
 <div id="summary" class="section level1">
 <h1>Summary</h1>
-<p>Temperature was measured for 22 experiments between 2017-10-06 00:01:00 and 2018-02-21 21:15:00. There are no cooking events for homes: MUS_01B, SHO_03B, SHO_04B, SHO_08B, SHO_10B, AKO_05B, AKO_07B, AKO_08B.</p>
+<p>Temperature was measured for 23 experiments between 2017-10-06 00:01:00 and 2018-02-21 21:15:00. There are no cooking events for homes: MUS_01B, SHO_03B, SHO_04B, SHO_08B, SHO_10B, AKO_07B, AKO_08B.</p>
 <p>Temperature data is expected to be missing for: no tests.</p>
 </div>
 <div id="save-files" class="section level1">
