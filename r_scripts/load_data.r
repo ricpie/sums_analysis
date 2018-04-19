@@ -46,7 +46,6 @@ load_sumsarized <- function(substitution_list){
     dplyr::bind_rows() %>%
     # convert time to secs in day and fix file problems
     dplyr::mutate(datetime = parse_date_time(gsub("/00", "/16", datetime),orders = c("y-m-d HMS", "m/d/y HMS"))) %>%
-    dplyr::mutate(logging_duration_days = as.numeric(difftime(max(datetime),min(datetime),units = "days")))  %>%
     #Do some file name formatting, looking for common errors, and unique ones.
     dplyr::mutate(sumsarizer_filename = if_else(grepl("DL4",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL4.csv", sumsarizer_filename),sumsarizer_filename)) %>% #Special case for importing DL4 and DL5, because they were not renamed properly.
     dplyr::mutate(sumsarizer_filename = if_else(grepl("DL5",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL5.csv", sumsarizer_filename),sumsarizer_filename))%>%

@@ -17,6 +17,9 @@ output:
   reimport_data <- FALSE #Set to TRUE if we need to reimport data SUMSARIZED, but this is slower.  Set to FALSE if already imported and no new data has been added.
 
   source('../r_files/parameter_file_Nigeria_AfDB.R')
+  Removed_Houses <- print(HHID_remove)
+  Files_with_these_strings_removed <- print(bad_files)
+  print(stove_codes)
 ```
 
 ```{r global_options, include=FALSE}
@@ -126,7 +129,7 @@ sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remo
                   HHID=as.factor(temp$HHID[breakstart]),
                   logger_id=factor(temp$logger_id[breakstart]),
                   stove=factor(temp$stove[breakstart]),
-                  logging_duration_days = as.numeric(temp$logging_duration_days[1]),
+                  logging_duration_days = as.numeric(difftime(datetime_removal_temp,datetime_placed_temp,units = "days")),
                   datetime_placed = datetime_placed_temp,
                   datetime_removal = datetime_removal_temp,
                   file_indices = temp$file_indices[breakstart], 
@@ -147,7 +150,7 @@ sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remo
                   HHID=as.factor(temp$HHID[1]), 
                   logger_id=factor(temp$logger_id[1]),
                   stove=factor(temp$stove[1]), 
-                  logging_duration_days=as.numeric(temp$logging_duration_days[1]),
+                  logging_duration_days = as.numeric(difftime(max(temp$datetime),min(temp$datetime),units = "days")),
                   datetime_placed = min(temp$datetime),
                   datetime_removal = max(temp$datetime),
                   file_indices = temp$file_indices[1], 
@@ -170,12 +173,6 @@ sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remo
                           dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID),"bad",qc)) %>% #Flag data from HHID's that should be removed.
                           dplyr::mutate(qc = if_else(grepl("amb",fullsumsarizer_filename,ignore.case=TRUE),"bad",qc))  #Flag data from HHID's that should be removed.
                
-
-
- #Data summaries
- # simpledatasummary <- summarise_each(sumsarized_events_all,funs(n_distinct(.)))
- # grouped_summary <- cooking_events %>% dplyr::group_by(group,stove_descriptions) %>%
- #    dplyr::summarize(mean=mean(duration_minutes, na.rm = TRUE), median=median(duration_minutes, na.rm = TRUE),sd=sd(duration_minutes, na.rm = TRUE),n=n())
 ```
 
 
@@ -213,7 +210,7 @@ sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remo
                           dplyr::mutate(events_per_hhid_stove = n()) %>%
                           dplyr::mutate(minutes_per_hhid_stove = sum(duration_minutes)) %>%
                           dplyr::ungroup() %>%
-                          dplyr::mutate(qc = if_else(days_logged_by_hhid_stove <= total_days_logged_minimum,"bad",qc)) %>% # Only keep data from house-stove combos with more than this number of days of data.
+                          dplyr::mutate(qc = if_else(days_logged_by_hhid_stove < total_days_logged_minimum,"bad",qc)) %>% # Only keep data from house-stove combos with more than this number of days of data.
                           dplyr::arrange(HHID) %>%
                           dplyr::filter(grepl("ok",qc)) %>%#Keep only data marked 'ok'
                           dplyr::filter(!is.na(HHID)) %>%
@@ -490,7 +487,7 @@ plotDayofWeekFunc <- function(x,y, na.rm = TRUE, ...) {
 }
 
 for (i in 1:dim(stove_group_codes)[1]){
-  plotDayofWeekFunc(ok_cooking_events,as.character(stove_group_codes$group[i]))
+  g5 <- plotDayofWeekFunc(ok_cooking_events,as.character(stove_group_codes$group[i]))
 }
 
 ```
@@ -535,19 +532,19 @@ for (i in 1:dim(stove_group_codes)[1]){
 
 plotStoveDaysFunc <- function(ok_cooking_events_padded, na.rm = TRUE, ...) {
   #Calculate percent stove-days.
-  g7 <-dplyr::group_by(ok_cooking_events_padded,day_month_year,stove_descriptions) %>%
+  g7 <-dplyr::group_by(ok_cooking_events_padded,day_month_year,stove_descriptions,group) %>%
         dplyr::distinct(HHID,stove_descriptions,day_month_year, .keep_all = TRUE) %>% #No duplicate events from the same hh contributing to stove-days.
-        dplyr::mutate(days_used_day_stove_grouped = 100*sum(use_flag, na.rm=TRUE)/sum(!use_flag, na.rm=TRUE)) %>%
+        dplyr::mutate(days_used_day_stove_grouped = 100*sum(use_flag, na.rm=TRUE)/(sum(use_flag, na.rm=TRUE)+sum(!use_flag, na.rm=TRUE))) %>%
         ggplot(aes(x=day_month_year, y = days_used_day_stove_grouped,color = stove_descriptions)) + 
-      geom_point() +# geom_smooth(method='lm',formula=y~x) +
-      #facet_grid(~group,scales = "free", space = "free") + 
+      geom_point() + geom_smooth() + #method='lm',formula=y~x) +
+      facet_grid(~group,scales = "free", space = "free") + 
       labs(y="% stove days",x="") + 
       theme(legend.title = element_blank()) + 
       theme(axis.text.x = element_text(angle = 60, hjust = 1))
     g7
           #ggsave(g7,filename=paste("../figures/PercentStoveDaysByGroup.png",sep=""))
 }
-plotStoveDaysFunc(ok_cooking_events_padded)
+g7 <- plotStoveDaysFunc(ok_cooking_events_padded)
 
 
 #Time of day trend.  Based on start time, change it to middle of event?  Remove groups with less than 5 hh's?
@@ -565,7 +562,7 @@ plotDensFunc <- function(x,y, na.rm = TRUE, ...) {
 
 for (i in 1:dim(stove_group_codes)[1]){
   ok_cooking_events_temp <- dplyr::filter(ok_cooking_events,grepl(as.character(stove_group_codes$group[i]),filename))
-  plotDensFunc(ok_cooking_events_temp,as.character(stove_group_codes$group[i]))
+  g8 <- plotDensFunc(ok_cooking_events_temp,as.character(stove_group_codes$group[i]))
 }
 
 

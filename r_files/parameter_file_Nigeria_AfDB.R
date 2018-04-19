@@ -3,17 +3,18 @@
 project_name <- "Nigeria_AfDB"
 
 #Text associating a given stove code with the full name to use in figures.
-stove_codes <- data.frame(stove = as.factor(c("CC","LP","LPG","KE","KE(1)","KE(2)","AMB")),
-                          stove_descriptions = as.factor(c("CleanCook","LPG","LPG","Kerosene","Kerosene","Kerosene","Ambient")))
+
+stove_codes <- data.frame(stove = as.factor(c("CC","CC(B)","LP","LPG","KE","KE1(B)","KE2(B)","KE(B)","AMB","AMB(B)","KE1","KE1","KE2", "KE(1)", "KE(2)")),
+                          stove_descriptions = as.factor(c("CleanCook","CleanCook","LPG","LPG","Kerosene","Kerosene","Kerosene","Kerosene","Ambient","Ambient","Kerosene","Kerosene","Kerosene","Kerosene","Kerosene")))
 
 stove_group_codes <- data.frame(group = as.factor(c("AKO","SHO","MUS")),  #Use these if there are different study arms.
                                 stove_groups = as.factor(c("AKO","SHO","MUS"))) #group variable in filter_sumsarized.R
 
 cooking_group <- 30 # x minute window for grouping events together.
-cooking_duration_minimum <- 9  #Minutes
+cooking_duration_minimum <- 5  #Minutes
 cooking_duration_maximum <- 1440 #Minutes
 logging_duration_minimum <- 1 #days.  Single file duration must be this long to be included in the analysis.
-total_days_logged_minimum <- 5 #Must have at least this many days for a households's stove to be included in the analysis.
+total_days_logged_minimum <- 4 #Must have at least this many days for a households's stove to be included in the analysis.
 
 #Set path to tracking sheet relative to 'SUMS processing' directory
 # path_tracking_sheet <- "SUMS Tracking data/AfBb_SUM_Tracking Data_Dec7_v2.xlsx"
