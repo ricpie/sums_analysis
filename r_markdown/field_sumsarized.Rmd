@@ -58,7 +58,12 @@ output:
 ```{r parse_add_metadata}
 #Import thermocouple data time series output from Sumsarizer.
 #datetime_placed is currently based on the metadata.  Flags data as good/bad based on the bad_files and HHID_remove variables.  Those are reapplied directly to the cooking events later, and filtered out if bad.
-sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remove,project_name,stove_codes) #HHID is grabbed from the filename.
+  if ( reimport_data == TRUE) {
+      sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remove,project_name,stove_codes) #HHID is grabbed from the filename.
+          saveRDS(sumsarized_filtered, file ="../r_files/sumsarized_filtered.RDS")
+  } else {
+      sumsarized_filtered <- readRDS("../r_files/sumsarized_filtered.RDS") #
+  }
 ```
 
   
@@ -355,7 +360,7 @@ kable(stats_by_stove_group_month, digits=2)
 
 # Plot all data time series
 * Plot usage rates (uses/day) by stove type, and region
-```{r plot_all_timeseries, fig.width=10, fig.height=50}
+```{r plot_all_timeseries, fig.width=10, fig.height=60}
 
 #Plot time series for each household, colored by filename.  For data completion purposes.
 field_timeseries_plot(sumsarized_filtered, "stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
@@ -364,7 +369,7 @@ field_timeseries_plot(sumsarized_filtered, "stove_temp", "datetime", "HHID", "st
 
 # Plot data time series, removing flagged files and households
 * Plot usage rates (uses/day) by stove type, and region
-```{r plot_ok_timeseries, fig.width=10, fig.height=50}
+```{r plot_ok_timeseries, fig.width=10, fig.height=60}
 #Plot time series for each household, colored by filename.  Filtered out bad qc data
 field_timeseries_plot(dplyr::filter(sumsarized_filtered,grepl("ok",qc)),"stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
 
@@ -382,7 +387,7 @@ print(files_without_metadata)
 
 # Boxplot usage results
 
-```{r boxplots_usage, fig.width=6, fig.height=4}
+```{r boxplots_usage, fig.width=7, fig.height=7}
 
 
 give.n <- function(x){
@@ -408,6 +413,7 @@ g1<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
   facet_grid(~group,scales = "free", space = "free") + 
   labs(y="Average uses per day",x="") + 
   ggtitle("Average uses per day for each household-stove combination") + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
   theme(legend.title = element_blank())
 g1
 #ggsave(filename="../figures/AverageUsesPerDay_byGrouppadded.png", plot=g1,width = 6, height = 4)
@@ -424,6 +430,7 @@ g11<- dplyr::group_by(ok_cooking_events_padded, stove_descriptions, day_month_ye
   #stat_summary(fun.data = give.n, geom = "text") + 
   facet_grid(group~stove_descriptions,scales = "free", space = "free") + 
   labs(y="days",x="Number of uses by day") + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
   theme(legend.title = element_blank())
 g11
 ##ggsave(filename="../figures/UsesPerDayDistribution_byGrouppadded.png", plot=g11,width = 6, height = 4)
@@ -469,7 +476,7 @@ g4
 
 # Time trend plots
 
-```{r plot_time_trends, fig.width=10, fig.height=4}
+```{r plot_time_trends, fig.width=10, fig.height=7}
 
 
 #Plot event duration per day by day of week.  Do not use the padded data set here, since there are non-events included in it, and they have an associated time.
@@ -550,6 +557,7 @@ for (i in 1:dim(stove_group_codes)[1]){
   facet_grid(~group~stove_descriptions,scales = "free", space = "free") + 
   ggtitle("Daily average used by group and stove") + 
   labs(y="Minutes per day",x="") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) + 
   ylim(0,200)
  g12
 #ggsave(filename="../figures/Overall_usage_fraction.png", plot=g12,width = 6, height = 4)
@@ -558,7 +566,7 @@ for (i in 1:dim(stove_group_codes)[1]){
 
 # Usage fraction result plots
 
-```{r plot_usage_fractions, fig.width=6, fig.height=4}
+```{r plot_usage_fractions, fig.width=7, fig.height=7}
 
 #Daily usage fraction by group. Includes all hh.  We could filter out houses with fewer than x sums to reduce any potential bias from a certain sum type burning up or something.
 g10<- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,duration_minutes) %>%
@@ -591,11 +599,30 @@ g10
   theme(legend.title = element_blank())
 g11
 #ggsave(filename="../figures/Overall_usage_fraction.png", plot=g12,width = 6, height = 4)
+
+
+#Overall usage fraction by group.  
+ g111<- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,duration_minutes,group) %>%
+  group_by(stove_descriptions,group) %>%
+  summarise(avg=mean(duration_minutes,na.rm=TRUE)) %>%
+  dplyr::mutate(usefraction = avg/sum(avg)) %>%
+  ggplot(aes(x=1, usefraction,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
+  geom_bar(aes(fill = stove_descriptions), 
+           col = "black",
+           stat = 'identity', 
+           position = "fill",size=0) +
+  geom_text(size = 5, position = position_stack(vjust = 0.5))+
+  ggtitle("Overall usage fraction") + 
+  facet_grid(~group,scales = "free", space = "free") + 
+  labs(y="Usage fraction",x="")  +
+  theme(legend.title = element_blank())
+g111
+#ggsave(filename="../figures/Overall_usage_fraction_bygroup.png", plot=g111,width = 6, height = 4)
 ```
 
 # Plot deployment details 
 
-```{r plot_monitoring_diagnostics, fig.width=6, fig.height=4}
+```{r plot_monitoring_diagnostics, fig.width=7, fig.height=}
 
  #Barplot by day of fraction of stoves monitored... not too interesting but neat coding to look at.
 g9<- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,duration_minutes) %>%
@@ -626,7 +653,7 @@ g6
 
 # Summary
 
-Temperature was measured for `r length(unique(ok_cooking_events$HHID))` experiments between `r min(ok_cooking_events$start_time, na.rm = TRUE)` and `r max(ok_cooking_events$end_time, na.rm = TRUE)`. There are no cooking events for homes: `r setdiff(as.character(metadata$HHID), as.character(ok_cooking_events$HHID))`.
+Temperature was measured for `r length(unique(ok_cooking_events$HHID))` houses between `r min(ok_cooking_events$start_time, na.rm = TRUE)` and `r max(ok_cooking_events$end_time, na.rm = TRUE)`. There are no cooking events for homes: `r setdiff(as.character(metadata$HHID), as.character(ok_cooking_events$HHID))`.
 
 Temperature data is expected to be missing for: no tests.
 
