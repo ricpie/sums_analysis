@@ -54,13 +54,13 @@ load_sumsarized <- function(substitution_list){
                                        sapply(sumsarizer_filename, function(x) unlist(gregexpr('/',x,perl=TRUE))[1])+1,100)) %>%
     # dplyr::mutate(sumsarizer_filename = gsub("KE", "_KE", sumsarizer_filename,ignore.case = TRUE)) %>% # the line below does this, but general and with the names given in the main file.
     dplyr::mutate(sumsarizer_filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,sumsarizer_filename,ignore.case = TRUE)) %>% #Make sure the underscores are placed before the stove type.
-    dplyr::mutate(sumsarizer_filename = gsub("__","_",sumsarizer_filename)) %>%
     dplyr::mutate(sumsarizer_filename = gsub(" ","_",sumsarizer_filename))  %>%
+    dplyr::mutate(sumsarizer_filename = gsub("__","_",sumsarizer_filename)) %>%
     dplyr::mutate(filename = substring(filename, sapply(filename, function(x) tail(unlist(gregexpr('/',x,perl=TRUE)),1)[1])+1, 100)) %>%
-    dplyr::mutate(filename = gsub("KE", "_KE", filename,ignore.case = TRUE)) %>%
+    #dplyr::mutate(filename = gsub("KE", "_KE", filename,ignore.case = TRUE)) %>%
     dplyr::mutate(filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,filename,ignore.case = TRUE)) %>%#Make sure the underscores are placed before the stove type.
-    dplyr::mutate(filename = gsub("__","_",filename)) %>%
     dplyr::mutate(filename = gsub(" ","_",filename))  %>%
+    dplyr::mutate(filename = gsub("__","_",filename)) %>%
     dplyr::mutate(filename = if_else(lengths(regmatches(filename, gregexpr("_", filename)))>3, substring(filename, sapply(filename, function(x) tail(unlist(gregexpr('_',x,perl=TRUE)),4)[1])+1, 100),filename))#If there are more than the three expected underscores, trim from the fourth from the last.
 
 }
@@ -202,7 +202,7 @@ load_meta_download_v2 <- function(path_tracking_sheet){
   #For the first non-repeating columns
   column_names <- c("HHID","phone","hh_contact","enumerator","deployment","number_loggers_placed_home",variers)
   
-  asdf<- read_excel(paste0("../","SUMs Tracking Data","/",path_tracking_sheet, collapse=NULL),
+  asdf<- read_excel(paste0("../../","SUMs Tracking Data","/",path_tracking_sheet, collapse=NULL),
                     sheet = 'AllData',skip = 1,
                     col_names = column_names,
                     
@@ -261,7 +261,7 @@ load_meta_download_v2 <- function(path_tracking_sheet){
   #Column orders changed, can't figure out why...manually correcting them.
   colnames(long_metadata) <- c("HHID","phone","hh_contact","enumerator","deployment","number_loggers_placed_home",
                                "datetime_launched",  "datetime_placed","datetime_removal","filename",
-                               "location_description", "logger_id","maxtemp","mintemp","notes_download",
+                               "location", "logger_id","maxtemp","mintemp","comments",
                                "notes_placement","photo_yn","placement_change","stove_type","time_launched","time_placed",  "time_removal")
   
   
