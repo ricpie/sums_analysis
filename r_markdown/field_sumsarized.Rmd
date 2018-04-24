@@ -22,16 +22,17 @@ output:
   print(stove_codes)
 ```
 
-```{r global_options, include=FALSE}
-  knitr::opts_chunk$set(fig.path='../figures/', warning=FALSE, message=FALSE, cache=FALSE)
-```
-
 ```{r functions_libs}
   source('../r_scripts/load.R')
   source("../r_scripts/functions.R")
   source("../r_scripts/load_data.r")
   source("../r_scripts/plots.R")
   source("../r_scripts/filter_sum_data.R")
+```
+
+
+```{r global_options, include=FALSE}
+  knitr::opts_chunk$set(fig.path='../figures/', warning=FALSE, message=FALSE, cache=FALSE)
 ```
 
 # Import temperature data and metadata files
@@ -48,7 +49,7 @@ output:
   sumsarized <- readRDS("../r_files/sumsarized.RDS") #
 
   #Load metadata
-  saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
+  saveRDS(load_meta_download_v2(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
   metadata <- readRDS("../r_files/metadata_download.RDS")
 ```
 
@@ -67,7 +68,7 @@ output:
 
 ```
 
-  
+
 * Form cooking events from raw sumsarizer output 
 * Group distinct cooking events together.  If they are within cooking_group minutes of each other.
 * Only need this for data that went through the web-based sumsarizer, where events are not made automatically.
@@ -173,9 +174,9 @@ output:
                                               dplyr::select(stove_codes,stove,stove_descriptions),by = "stove") %>%
                           dplyr::mutate(units = "degrees Celsius") %>% #Define units as degrees C
                           dplyr::mutate(duration_minutes = as.numeric(difftime(end_time,start_time,units = "mins"))) %>%
-                          dplyr::mutate(qc = if_else(grepl(bad_files,fullsumsarizer_filename,ignore.case=TRUE),"bad","ok")) %>% #Flag data from bad files
-                          dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID),"bad",qc)) %>% #Flag data from HHID's that should be removed.
-                          dplyr::mutate(qc = if_else(grepl("amb",fullsumsarizer_filename,ignore.case=TRUE),"bad",qc))  #Flag data from HHID's that should be removed.
+                          dplyr::mutate(qc = if_else(grepl(bad_files,fullsumsarizer_filename,ignore.case=TRUE),"excluded_file_list","ok")) %>% #Flag data from bad files
+                          dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID),"excluded_household_list",qc)) %>% #Flag data from HHID's that should be removed.
+                          dplyr::mutate(qc = if_else(grepl("amb",fullsumsarizer_filename,ignore.case=TRUE),"ambient",qc))  #Flag data from HHID's that should be removed.
                
 ```
 
@@ -186,11 +187,10 @@ output:
 ```{r create_flags}
 
   #Remove short events, while keeping entries from files with no events.
-  ok_cooking_events <-  dplyr::filter(cooking_events,!is.na(stove_descriptions)) %>%
-                          dplyr::filter(logging_duration_days >= logging_duration_minimum) %>% # Only keep files longer than a day.
+  ok_cooking_events_unfiltered <-  dplyr::mutate(cooking_events,qc,if_else(is.na(stove_descriptions),"NA_stove_description",qc)) %>%
                           #Filter out events shorter than the threshold, while keeping the entries that 
                           #have no uses in the deployments. At this point all events except empty files have use_flag = TRUE.
-                          dplyr::filter(!grepl("out_of_placement_range",qc_dates)) %>%#Keep data not marked as placed out of range
+                          dplyr::mutate(if_else(grepl("out_of_placement_range",qc_dates),"out_of_placement_range",qc)) %>%
                           dplyr::select(filename,fullsumsarizer_filename,start_time,end_time,duration_minutes,
                                 HHID,stove,logger_id,group,
                                 stove_descriptions,stove,logging_duration_days,datetime_placed,
@@ -208,13 +208,20 @@ output:
                           dplyr::distinct(start_time,duration_minutes,HHID,stove_descriptions, .keep_all = TRUE) %>% 
                           #Handle cases that have duplicated events due to overlapping files. Keep only distinct ones
                           dplyr::mutate(datetime_placed = floor_date(datetime_placed,"minute")) %>%
-                          dplyr::mutate(qc = if_else(logging_duration_days < total_days_logged_minimum,"bad",qc)) %>% # Only keep data from house-stove combos with more than this number of days of data.
+                          dplyr::mutate(qc=if_else(logging_duration_days < logging_duration_minimum,"short_file_duration",qc)) %>%#Each file must be longer than this many days
                           dplyr::arrange(HHID) %>%
-                          dplyr::filter(!is.na(HHID)) %>%
-                          dplyr::filter(!is.na(datetime_placed))  %>%
-                          dplyr::filter(grepl("ok",qc)) %>% #Keep only data marked 'ok'
+                          dplyr::mutate(qc=if_else(is.na(HHID),"NA_HHID",qc)) %>%
+                          dplyr::mutate(qc=if_else(is.na(datetime_placed),"NA_datetime_placed",qc)) 
+
+ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,grepl("ok",qc)) %>% #Keep only data marked 'ok'
                           droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
 
+#Get list of files removed, and reasons why:
+
+goodfilenames <- paste(unique(ok_cooking_events$fullsumsarizer_filename),collapse = "|")
+list_of_bad_files <-dplyr::filter(ok_cooking_events_unfiltered,!grepl(goodfilenames,fullsumsarizer_filename)) %>%
+                          dplyr::select(fullsumsarizer_filename,start_time,qc,HHID,logging_duration_days,datetime_placed,stove_descriptions)
+print(list_of_bad_files)
 
 ok_cooking_events_padded <- data.frame(stringsAsFactors = FALSE)
 #Replace NA with 0.
@@ -278,6 +285,9 @@ for (i in 1:length(unique(ok_cooking_events$filename))) {
 
     #Finish filtering the dataset.  Kept 'bad' and short events to get the full padded dataset.  Now can remove them
     ok_cooking_events <- dplyr::filter(ok_cooking_events,duration_minutes>cooking_duration_minimum | use_flag==FALSE) 
+    
+    #Remove household-stoves that have less than this many days... do it to the padded data set or both?  Should be done somehow for the usage fraction results
+    #dplyr::mutate(qc = if_else(logging_duration_days < total_days_logged_minimum,"short_total_logging_duration",qc)) %>% # Only keep data from house-stove combos with more than this number of days of data.
       
 ```
 
@@ -355,7 +365,7 @@ kable(stats_by_stove_group_month, digits=2)
 list_of_datasets <- list("By Stove Group and HHID" = stats_grouped_by_hhid_stove, "By Stove Group" = stats_by_stove_group,
                          "By Stove Type" = stats_by_stove,"By HHID and Monthly" = stats_grouped_by_hhid_stove_month,
                          "By Group and Monthly" = stats_by_stove_group_month)
-openxlsx::write.xlsx(list_of_datasets, file = paste0("Summary Statistics ",format(now(),"%y-%m-%d"),".xlsx"))
+openxlsx::write.xlsx(list_of_datasets, file = paste0("Summary Statistics ",now(),".xlsx"))
 ```
 
 
@@ -383,6 +393,10 @@ files_without_hhid
 
 files_without_metadata <- unique(dplyr::filter(sumsarized_filtered,is.na(stove_descriptions)) %>% dplyr::select(fullsumsarizer_filename))   #Note the name of files for which there is there is no matching filename in the tracking sheet, ergo no metadata from the tracking sheet. Not currently being filtered out, but this should be attended to by fixing any data files/tracking entries that appear in this variable.  Make sure that the actual file name matches what is listed in the tracking sheet.  Files names should also be unique.
 files_without_metadata
+
+
+filtered_files <- unique(dplyr::filter(sumsarized_filtered,grepl("ok",qc)) %>% dplyr::select(fullsumsarizer_filename))   #Note the name of files for which there is there is no matching filename in the tracking sheet, ergo no metadata from the tracking sheet. Not currently being filtered out, but this should be attended to by fixing any data files/tracking entries that appear in this variable.  Make sure that the actual file name matches what is listed in the tracking sheet.  Files names should also be unique.
+print(filtered_files)
 ```
 
 
@@ -390,7 +404,6 @@ files_without_metadata
 # Boxplot usage results
 
 ```{r boxplots_usage, fig.width=7, fig.height=7}
-
 
 
 give.n <- function(x){
@@ -647,5 +660,3 @@ Temperature data is expected to be missing for: no tests.
 ```{r save_data}
   saveRDS(ok_cooking_events, file = "../r_files/ok_cooking_events.RDS")
 ```
-
-
