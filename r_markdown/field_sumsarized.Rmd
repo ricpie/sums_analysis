@@ -49,7 +49,7 @@ output:
   sumsarized <- readRDS("../r_files/sumsarized.RDS") #
 
   #Load metadata
-  saveRDS(load_meta_download_v2(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
+  saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
   metadata <- readRDS("../r_files/metadata_download.RDS")
 ```
 
