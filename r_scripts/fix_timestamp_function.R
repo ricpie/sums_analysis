@@ -67,7 +67,8 @@ fileCleanerTimeStamp <- function(filerun){
   datas[Unit=="F", Value:=(Value-32) * 5/9]
   datas[Unit=="F", Unit:="C"]
   
-  #Look for inverted data, which may be the cae if the thermocouples are connected with the opposite polarity.  Flip if more than 1% of the data is negative
+  #Look for inverted data, which may be the cae if the thermocouples are connected with the opposite polarity.  
+  #Flip if more than 1% of the data is negative
   if (quantile(datas$Value,.01) < 0) {
     datas$Value <- 40 - datas$Value
   }
@@ -97,12 +98,11 @@ fileCleanerTimeStamp <- function(filerun){
   colonpresence <- unique((sapply(regmatches(datas[,Date.Time], gregexpr(":", datas[,Date.Time])), length)))
   
   dir.create(path=paste(dirname(filerun),'/Corrected Timestamps',sep=""), showWarnings = FALSE)
-  
 
   options(warn=-1)
 
   #If there are more unique values in DT1 than DT2, then the first value is days. This could be defeated if there is only one day of data. Would also not work if there are a lot of different formats with varying levels of leading zeros.
-  
+  newfilename = paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep="")
   if ((dashpresence) & (colonpresence==1) & DT1dash>DT2dash) { #D-M-Y hh:mm
     datas[,Date.Time:=dmy_hm(as.character(Date.Time))]
     cat(paste(header$V1, collapse="\n"), file=newfilename)
@@ -160,10 +160,6 @@ fileCleanerTimeStamp <- function(filerun){
     grid(nx = 5, ny = 10, col = "lightgray", lty = "dotted",
          lwd = par("lwd"), equilogs = TRUE)
     dev.off()
-    # 
-  
-  
-  
   
 }
 
