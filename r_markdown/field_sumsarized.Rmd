@@ -17,9 +17,6 @@ output:
   reimport_data <- FALSE #Set to TRUE if we need to reimport data SUMSARIZED, but this is slower.  Set to FALSE if already imported and no new data has been added.
 
   source('../r_files/parameter_file_Nigeria_AfDB.R')
-  Removed_Houses <- print(HHID_remove)
-  Files_with_these_strings_removed <- print(bad_files)
-  print(stove_codes)
 ```
 
 ```{r functions_libs}
@@ -36,7 +33,7 @@ output:
 ```
 
 # Import temperature data and metadata files
-```{r load_data, warning=FALSE, echo=FALSE}
+```{r load_data, warning=FALSE}
   #Reloads all SUMSARIZED data.
   
   if (!file.exists("../r_files/sumsarized.RDS") | reimport_data == TRUE) {
@@ -51,6 +48,10 @@ output:
   #Load metadata
   saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
   metadata <- readRDS("../r_files/metadata_download.RDS")
+  
+  kable(HHID_remove) #List of houses that have been flagged for exclusion
+  kable(bad_files) #List of files that have been flagged for exclusion
+  kable(stove_codes) #List of stove codes
 ```
 
 # Tidy
@@ -218,10 +219,13 @@ ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,grepl("ok",qc)) 
 
 #Get list of files removed, and reasons why:
 
-goodfilenames <- paste(unique(ok_cooking_events$fullsumsarizer_filename),collapse = "|")
-list_of_bad_files <-dplyr::filter(ok_cooking_events_unfiltered,!grepl(goodfilenames,fullsumsarizer_filename)) %>%
-                          dplyr::select(fullsumsarizer_filename,start_time,qc,HHID,logging_duration_days,datetime_placed,stove_descriptions)
-print(list_of_bad_files)
+not_ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,!grepl("ok",qc)) %>% #Keep only data marked 'ok'
+                          droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
+
+list_of_bad_files <-  dplyr::mutate(not_ok_cooking_events,logging_duration_days = as.character(sprintf("%0.2f", round(logging_duration_days, digits = 2)  ))) %>%
+                          dplyr::select(fullsumsarizer_filename,start_time,qc,HHID,logging_duration_days,datetime_placed,stove_descriptions) %>%
+                          dplyr::distinct(fullsumsarizer_filename,qc, .keep_all = TRUE)
+kable(list_of_bad_files)
 
 ok_cooking_events_padded <- data.frame(stringsAsFactors = FALSE)
 #Replace NA with 0.
@@ -365,7 +369,7 @@ kable(stats_by_stove_group_month, digits=2)
 list_of_datasets <- list("By Stove Group and HHID" = stats_grouped_by_hhid_stove, "By Stove Group" = stats_by_stove_group,
                          "By Stove Type" = stats_by_stove,"By HHID and Monthly" = stats_grouped_by_hhid_stove_month,
                          "By Group and Monthly" = stats_by_stove_group_month)
-openxlsx::write.xlsx(list_of_datasets, file = paste0("Summary Statistics ",now(),".xlsx"))
+openxlsx::write.xlsx(list_of_datasets, file = paste0("Summary Statistics ",format(now(),"%d-%b-%y"),".xlsx"))
 ```
 
 
@@ -396,7 +400,6 @@ files_without_metadata
 
 
 filtered_files <- unique(dplyr::filter(sumsarized_filtered,grepl("ok",qc)) %>% dplyr::select(fullsumsarizer_filename))   #Note the name of files for which there is there is no matching filename in the tracking sheet, ergo no metadata from the tracking sheet. Not currently being filtered out, but this should be attended to by fixing any data files/tracking entries that appear in this variable.  Make sure that the actual file name matches what is listed in the tracking sheet.  Files names should also be unique.
-print(filtered_files)
 ```
 
 

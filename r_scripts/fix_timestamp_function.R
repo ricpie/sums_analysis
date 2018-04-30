@@ -34,12 +34,28 @@ fileCleanerTimeStamp <- function(filerun){
     datas <- as.data.table(read.csv(filerun, skip=headerstart, colClasses=c('character', 'character', 'numeric')))
     
   } else { #For Wellzion
-    datas <- as.data.table(read.csv(filerun, sep="\"",fileEncoding="UCS-2LE", header=1, stringsAsFactor=F)) %>%
-          dplyr::mutate(Unit = "C") %>%
-          dplyr::rename(Date.Time = Timestamp,Value = Thermocouple.C.) %>%
-          dplyr::select("Date.Time","Unit","Value") 
+    datas = tryCatch({ datas<- as.data.table(read.csv(filerun, sep="\"",fileEncoding="UCS-2LE", header=1, stringsAsFactor=F)) %>%
+          dplyr::mutate(Unit = "C") 
+          names(datas) = gsub("Thermocouple..","Thermocouple.",names(datas))
+          dplyr::rename(datas,Date.Time = Timestamp,Value = Thermocouple.C.) %>%
+          dplyr::select("Date.Time","Unit","Value")  
+    }, error = function(error_condition) {
+      datas<- as.data.table(read.csv(filerun, sep="\"",fileEncoding="UCS-2LE", header=1, stringsAsFactor=F)) %>%
+        dplyr::mutate(Unit = "C") 
+      datas <- datas[,c(4,6,12)]
+      names(datas) = c("Date.Time","Unit","Value")    
+      datas
+    }, finally={
+          datas<- as.data.table(read.csv(filerun, sep="\"",fileEncoding="UCS-2LE", header=1, stringsAsFactor=F)) %>%
+            dplyr::mutate(Unit = "C") 
+          datas <- datas[,c(4,6,12)]
+          names(datas) = c("Date.Time","Unit","Value")
+          datas
+    })
+        
     header$V1 = NULL
     datas <- as.data.table(datas)
+    
   }
   
   print(filerun)
