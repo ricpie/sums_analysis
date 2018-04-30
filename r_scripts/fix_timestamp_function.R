@@ -4,6 +4,8 @@ library(lubridate)
 library(tools)
 library(data.table)
 library(anytime)
+library(tcltk)
+library(grDevices)
 
 fileCleanerTimeStamp <- function(filerun){
   
@@ -65,10 +67,10 @@ fileCleanerTimeStamp <- function(filerun){
   datas[Unit=="F", Value:=(Value-32) * 5/9]
   datas[Unit=="F", Unit:="C"]
   
-  #If second column is units 'C' then time stamp is in correct format.  If not, need to combine date and time from the first and second column
-  
-  #check first datetime element
-  
+  #Look for inverted data, which may be the cae if the thermocouples are connected with the opposite polarity.  Flip if more than 1% of the data is negative
+  if (quantile(datas$Value,.01) < 0) {
+    datas$Value <- 40 - datas$Value
+  }
 
   #Get the number of unique values in the first date position.
   date_string_start_fun <- function(xx,y) {substring(xx,1,sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[1])-1) }
@@ -103,38 +105,65 @@ fileCleanerTimeStamp <- function(filerun){
   
   if ((dashpresence) & (colonpresence==1) & DT1dash>DT2dash) { #D-M-Y hh:mm
     datas[,Date.Time:=dmy_hm(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
-    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    cat(paste(header$V1, collapse="\n"), file=newfilename)
+    write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
     
   } else if ((dashpresence) & (colonpresence==2) & DT1dash>DT2dash) {  #D-M-Y hh:mm:ss
     datas[,Date.Time:=dmy_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
-    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    cat(paste(header$V1, collapse="\n"), newfilename)
+    write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
     
   } else if ((dashpresence) & (colonpresence==1) & DT3dash>DT2dash) {  #Y-m-d hh:mm
     datas[,Date.Time:=ymd_hm(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
-    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    cat(paste(header$V1, collapse="\n"), file = newfilename)
+    write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
     
   } else if ((dashpresence) & (colonpresence==2) & DT3dash>DT2dash)  {  #y-m-d hh:mm:ss
     datas[,Date.Time:=ymd_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
-    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    cat(paste(header$V1, collapse="\n"), file=newfilename)
+    write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
     
   } else if ((slashpresence) & (colonpresence==1) & DT2slash>DT1slash)  {  #M/D/Y hh:mm
     datas[,Date.Time:=mdy_hm(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
-    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    cat(paste(header$V1, collapse="\n"), file=newfilename)
+    write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
     
   } else if ((slashpresence) & (colonpresence==2) & DT2slash>DT1slash)  {  #M/D/Y hh:mm:ss
     datas[,Date.Time:=mdy_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
-    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    cat(paste(header$V1, collapse="\n"), file=newfilename)
+    write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
   } else  {
     datas[,Date.Time:=mdy_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""))
-    write.table(datas, paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep=""), sep=",", append=TRUE, row.names=F, quote=F)
+    cat(paste(header$V1, collapse="\n"), file=newfilename)
+    write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
   }
+  
+
+
+  
+    plot_names <- gsub(".csv",".png",newfilename)
+  
+    datas$Date.Time <- parse_date_time(datas$Date.Time, orders = c("y-m-d HMS","y-m-d HM", "m/d/y HM", "m/d/y HMS"))#,"d/m/y HM","d-m-y HM"))
+    
+    #Prepare some text for looking at the ratios of high to low temps.
+    percentiles <- quantile(datas$Value,c(.05,.95))
+    quantile_rpd <- unname(100*(percentiles[2]-percentiles[1])/percentiles[2])
+    cat_string <- paste("min T(C) = ",as.character(percentiles[1]),
+                        ", max T(C) = ",as.character(percentiles[2]),
+                        "max/min = ", strtrim(as.character(quantile_rpd),5))
+    # cat_string <- ""
+    
+    png(filename=plot_names,width = 550, height = 480, res = 100)
+    plot(datas$Date.Time, datas$Value, main=plot_names,#xaxt = "n",
+         type = "p", xlab = cat_string, ylab="Temp (C)",prob=TRUE,cex.main = .6,cex = .5)
+    #axis(1, datas$Date.Time, format(datas$Date.Time, "%m/%d"), cex.axis = .7)
+    grid(nx = 5, ny = 10, col = "lightgray", lty = "dotted",
+         lwd = par("lwd"), equilogs = TRUE)
+    dev.off()
+    # 
+  
+  
+  
   
 }
 
