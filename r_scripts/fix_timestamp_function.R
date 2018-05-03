@@ -80,17 +80,13 @@ fileCleanerTimeStamp <- function(filerun){
   date_string_end_fun <- function(xx,y) {substring(xx, sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[2])+1
                                                           ,sapply(xx, function(x) unlist(gregexpr("\ ",x,perl=TRUE)))-1) }
   
-
-  
   DT1dash <-length(unique(date_string_start_fun(datas$Date.Time,"-")))#Grab first position of the date string assuming it uses a dash delimiter.
   DT2dash <- length(unique(date_string_middle_fun(datas$Date.Time,"-",1,2)))#Grab middle position of the date string assuming it uses a dash delimiter.
   DT3dash <- length(unique(date_string_end_fun(datas$Date.Time,"-")))#Grab last position of the date string assuming it uses a dash delimiter.
   
-  
   DT1slash <-length(unique(date_string_start_fun(datas$Date.Time,"/")))#Grab first position of the date string assuming it uses a dash delimiter.
   DT2slash <- length(unique(date_string_middle_fun(datas$Date.Time,"/",1,2)))#Grab middle position of the date string assuming it uses a dash delimiter.
   DT3slash <- length(unique(date_string_end_fun(datas$Date.Time,"/")))#Grab last position of the date string assuming it uses a dash delimiter.
-  
   
   slashpresence <- unique((sapply(regmatches(datas[,Date.Time], gregexpr("/", datas[,Date.Time])), length)))>1
   dashpresence <- unique((sapply(regmatches(datas[,Date.Time], gregexpr("-", datas[,Date.Time])), length)))>1
@@ -138,11 +134,11 @@ fileCleanerTimeStamp <- function(filerun){
     write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
   }
   
-
+  #Plot the data 
+  plot_names <- gsub(".csv",".png",newfilename)
 
   
-    plot_names <- gsub(".csv",".png",newfilename)
-  
+  tryCatch({ 
     datas$Date.Time <- parse_date_time(datas$Date.Time, orders = c("y-m-d HMS","y-m-d HM", "m/d/y HM", "m/d/y HMS"))#,"d/m/y HM","d-m-y HM"))
     
     #Prepare some text for looking at the ratios of high to low temps.
@@ -151,8 +147,6 @@ fileCleanerTimeStamp <- function(filerun){
     cat_string <- paste("min T(C) = ",as.character(percentiles[1]),
                         ", max T(C) = ",as.character(percentiles[2]),
                         "max/min = ", strtrim(as.character(quantile_rpd),5))
-    # cat_string <- ""
-    
     png(filename=plot_names,width = 550, height = 480, res = 100)
     plot(datas$Date.Time, datas$Value, main=plot_names,#xaxt = "n",
          type = "p", xlab = cat_string, ylab="Temp (C)",prob=TRUE,cex.main = .6,cex = .5)
@@ -160,6 +154,12 @@ fileCleanerTimeStamp <- function(filerun){
     grid(nx = 5, ny = 10, col = "lightgray", lty = "dotted",
          lwd = par("lwd"), equilogs = TRUE)
     dev.off()
+    
+  }, error = function(error_condition) {
+
+  }, finally={
+
+  })
   
 }
 
