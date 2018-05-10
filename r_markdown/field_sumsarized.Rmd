@@ -62,7 +62,8 @@ output:
   #Load metadata from the tracking sheet.  
   saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
   metadata <- readRDS("../r_files/metadata_download.RDS")
-  
+  metadata <- dplyr::filter(metadata,!(is.na(datetime_launched)))
+
   print(HHID_remove) #List of houses that have been flagged for exclusion
   print(bad_files) #List of files that have been flagged for exclusion
 ```
