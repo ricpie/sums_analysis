@@ -10,21 +10,34 @@ output:
     self_contained: yes
 ---
 
+```{r read_me}
+  #To run this code for SUMs analysis, first ensure that Rstudio with R 3.3.2 or later is installed.
+  #The code requires 1. SUMSARIZED data, and 2. a tracking data Excel sheet
+  #Ensure that the files are located in the right locations, as per the SUMs Analysis Training Guide (https://www.dropbox.com/s/wcykl2wsb67tuux/SUMSAnalysisBATraining.pdf?dl=0)
+```
+
 # Define variables for coding stoves and for filtering out data.
 * Also set some constants for the stove event analysis
 
 ```{r define_variables}
-  reimport_data <- FALSE #Set to TRUE if we need to reimport data SUMSARIZED, but this is slower.  Set to FALSE if already imported and no new data has been added.
+  #Users should must make sure the two variables in this chunk are defined as desired.
 
-  source('../r_files/parameter_file_Nigeria_AfDB.R')
+  #1. Set to TRUE if we need to reimport data SUMSARIZED, but this is slower.  Set to FALSE if already imported and no new data has been added.
+  reimport_data <- FALSE 
+  
+  #2.  Make sure the parameter file is for the project you are using.  The parameter file must be located in the r_files folder.
+  source('../r_files/parameter_file_Nigeria_AfDB.R') 
 ```
 
-```{r functions_libs}
+```{r load_libraries_functions}
   source('../r_scripts/load.R')
   source("../r_scripts/functions.R")
   source("../r_scripts/load_data.r")
   source("../r_scripts/plots.R")
   source("../r_scripts/filter_sum_data.R")
+  if (.Platform$OS.type!="unix") {
+        Sys.setenv("R_ZIPCMD" = "C:/Rtools/bin/zip.exe") 
+    }
 ```
 
 
@@ -34,7 +47,7 @@ output:
 
 # Import temperature data and metadata files
 ```{r load_data, warning=FALSE}
-  #Reloads all SUMSARIZED data.
+  #Loads all SUMSARIZED data.  Reloads the RDS file if reimport_data is set to FALSE.  This is faster if all the data has been previously imported by setting it to TRUE.
   
   if (!file.exists("../r_files/sumsarized.RDS") | reimport_data == TRUE) {
   #Rprof("rprofout.out") #Analyze code, it is quite slow... but only need to do it occasionally.
@@ -43,15 +56,15 @@ output:
   #summaryRprof("../r_markdown/rprofout.out")
   }
 
-  sumsarized <- readRDS("../r_files/sumsarized.RDS") #
+  #Save the sumsarized data to a single dataframe called sumsarized.RDS, located in r_files.
+  sumsarized <- readRDS("../r_files/sumsarized.RDS") 
 
-  #Load metadata
+  #Load metadata from the tracking sheet.  
   saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
   metadata <- readRDS("../r_files/metadata_download.RDS")
   
-  kable(HHID_remove) #List of houses that have been flagged for exclusion
-  kable(bad_files) #List of files that have been flagged for exclusion
-  kable(stove_codes) #List of stove codes
+  print(HHID_remove) #List of houses that have been flagged for exclusion
+  print(bad_files) #List of files that have been flagged for exclusion
 ```
 
 # Tidy
@@ -61,18 +74,25 @@ output:
 #Import thermocouple data time series output from Sumsarizer.
 #datetime_placed is currently based on the metadata.  Flags data as good/bad based on the bad_files and HHID_remove variables.  Those are reapplied directly to the cooking events later, and filtered out if bad.
   if ( reimport_data == TRUE) {
-      sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remove,project_name,stove_codes) #HHID is grabbed from the filename.
+      sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remove,
+                                               project_name,stove_codes,logging_duration_minimum) #HHID is grabbed from the filename.
           saveRDS(sumsarized_filtered, file ="../r_files/sumsarized_filtered.RDS")
   } else {
-      sumsarized_filtered <- readRDS("../r_files/sumsarized_filtered.RDS") #
+      sumsarized_filtered <- readRDS("../r_files/sumsarized_filtered.RDS") #Loads the already-imported filtered sumsarized data if reimport_data is set to FALSE.
   }
 
+#These are the stove types found in the file names
+print(unique(sumsarized_filtered$stove))
+
+#This is a list of the stove types listed in the parameter file.  Any stove types missing from here that are in the file names will appear as 0 or NA in the analysis later, and must be 
+#corrected by adding it to the stove_codes list.
+kable(stove_codes) 
 ```
 
 
-* Form cooking events from raw sumsarizer output 
+# Form cooking events from raw sumsarizer output 
 * Group distinct cooking events together.  If they are within cooking_group minutes of each other.
-* Only need this for data that went through the web-based sumsarizer, where events are not made automatically.
+* Need this for data that went through the web-based sumsarizer, where events are not made automatically.
 
 ```{r group_cooking_events, warning=FALSE}
 
@@ -91,11 +111,13 @@ output:
    #Grab data from file i, and keep only the entries that are marked as cooking
    temp <- dplyr::filter(sumsarized_filtered,file_indices == i) %>%
       dplyr::filter(state == TRUE) %>% dplyr::filter(!duplicated(datetime)) 
+    tempALL <- dplyr::filter(sumsarized_filtered,file_indices == i) 
+   
    qc_temp <- "ok" #Default to ok data quality, gets demoted based on later checks.
 
    if (dim(temp)[1]>1 && any(temp$state==TRUE)) {
-      min_time_file = min(temp$datetime)
-      max_time_file = max(temp$datetime)
+      min_time_file = min(tempALL$datetime)
+      max_time_file = max(tempALL$datetime)
       time_difference <- as.numeric(difftime(temp$datetime,lag(temp$datetime),units="mins"))
       time_difference <- time_difference[!is.na(time_difference)] #
      
@@ -170,7 +192,7 @@ output:
  }
 
 
-#Clean up cooking events. Add better variable names for stoves, and units.
+#Clean up cooking events. Implements quality checking in the qc variable so we know which events to remove later.  Also adds better variable names for stoves, and units.
  cooking_events <- dplyr::left_join(cooking_events,
                                               dplyr::select(stove_codes,stove,stove_descriptions),by = "stove") %>%
                           dplyr::mutate(units = "degrees Celsius") %>% #Define units as degrees C
@@ -187,46 +209,50 @@ output:
   *Perform filtering on cooking events variable to get to the subset we want.
 ```{r create_flags}
 
-  #Remove short events, while keeping entries from files with no events.
-  ok_cooking_events_unfiltered <-  dplyr::mutate(cooking_events,qc,if_else(is.na(stove_descriptions),"NA_stove_description",qc)) %>%
-                          #Filter out events shorter than the threshold, while keeping the entries that 
-                          #have no uses in the deployments. At this point all events except empty files have use_flag = TRUE.
-                          dplyr::mutate(if_else(grepl("out_of_placement_range",qc_dates),"out_of_placement_range",qc)) %>%
-                          dplyr::select(filename,fullsumsarizer_filename,start_time,end_time,duration_minutes,
-                                HHID,stove,logger_id,group,
-                                stove_descriptions,stove,logging_duration_days,datetime_placed,
-                                datetime_removal, units,comments,use_flag,qc) %>%
-                          dplyr::mutate(start_hour = hour(start_time) + minute(start_time)/60) %>%
-                          dplyr::mutate(month_year = format(start_time,"%b-%y")) %>%
-                          dplyr::mutate(month_year = factor(month_year, unique(month_year), ordered=TRUE)) %>%
-                          dplyr::mutate(day_month_year = as.Date(start_time)) %>%
-                          dplyr::mutate(week_year = format(start_time,"%V-%y")) %>%
-                          dplyr::mutate(day_of_week = as.factor(weekdays(start_time))) %>%
-                          dplyr::mutate(day_of_week = factor(day_of_week, 
-                                     levels = c('Monday','Tuesday','Wednesday','Thursday',
-                                                'Friday','Saturday','Sunday'))) %>%
-                          dplyr::arrange(desc(datetime_removal)) %>%  #Sort so we toss the earlier end dates when deleting distinct values.
-                          dplyr::distinct(start_time,duration_minutes,HHID,stove_descriptions, .keep_all = TRUE) %>% 
-                          #Handle cases that have duplicated events due to overlapping files. Keep only distinct ones
-                          dplyr::mutate(datetime_placed = floor_date(datetime_placed,"minute")) %>%
-                          dplyr::mutate(qc=if_else(logging_duration_days < logging_duration_minimum,"short_file_duration",qc)) %>%#Each file must be longer than this many days
-                          dplyr::arrange(HHID) %>%
-                          dplyr::mutate(qc=if_else(is.na(HHID),"NA_HHID",qc)) %>%
-                          dplyr::mutate(qc=if_else(is.na(datetime_placed),"NA_datetime_placed",qc)) 
-
+#Removes events that are classified as too short, while keeping entries from files with no events.
+#Adds new time-related variables for later plotting and analysis.
+#Drops unneeded variables.
+ok_cooking_events_unfiltered <-  dplyr::mutate(cooking_events,qc,if_else(is.na(stove_descriptions),"NA_stove_description",qc)) %>%
+        #Filter out events shorter than the threshold, while keeping the entries that 
+        #have no uses in the deployments. At this point all events except empty files have use_flag = TRUE.
+        dplyr::mutate(if_else(grepl("out_of_placement_range",qc_dates),"out_of_placement_range",qc)) %>%
+        dplyr::select(filename,fullsumsarizer_filename,start_time,end_time,duration_minutes,
+              HHID,stove,logger_id,group,
+              stove_descriptions,stove,logging_duration_days,datetime_placed,
+              datetime_removal, units,comments,use_flag,qc) %>%
+        dplyr::mutate(start_hour = hour(start_time) + minute(start_time)/60) %>%
+        dplyr::mutate(month_year = format(start_time,"%b-%y")) %>%
+        dplyr::mutate(month_year = factor(month_year, unique(month_year), ordered=TRUE)) %>%
+        dplyr::mutate(day_month_year = as.Date(start_time)) %>%
+        dplyr::mutate(week_year = format(start_time,"%V-%y")) %>%
+        dplyr::mutate(day_of_week = as.factor(weekdays(start_time))) %>%
+        dplyr::mutate(day_of_week = factor(day_of_week, 
+                   levels = c('Monday','Tuesday','Wednesday','Thursday',
+                              'Friday','Saturday','Sunday'))) %>%
+        dplyr::arrange(desc(datetime_removal)) %>%  #Sort so we toss the earlier end dates when deleting distinct values.
+        dplyr::distinct(start_time,duration_minutes,HHID,stove_descriptions, .keep_all = TRUE) %>% 
+        #Handle cases that have duplicated events due to overlapping files. Keep only distinct ones
+        dplyr::mutate(datetime_placed = floor_date(datetime_placed,"minute")) %>%
+        dplyr::mutate(qc=if_else(logging_duration_days < logging_duration_minimum,"short_file_duration",qc)) %>%#Each file must be longer than this many days
+        dplyr::arrange(HHID) %>%
+        dplyr::mutate(qc=if_else(is.na(HHID),"NA_HHID",qc)) %>%
+        dplyr::mutate(qc=if_else(is.na(datetime_placed),"NA_datetime_placed",qc)) 
+  
+#Removes data with qc listed as anything but 'ok'. 
 ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,grepl("ok",qc)) %>% #Keep only data marked 'ok'
-                          droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
+        droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
 
 #Get list of files removed, and reasons why:
-
 not_ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,!grepl("ok",qc)) %>% #Keep only data marked 'ok'
-                          droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
+        droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
 
 list_of_bad_files <-  dplyr::mutate(not_ok_cooking_events,logging_duration_days = as.character(sprintf("%0.2f", round(logging_duration_days, digits = 2)  ))) %>%
-                          dplyr::select(fullsumsarizer_filename,start_time,qc,HHID,logging_duration_days,datetime_placed,stove_descriptions) %>%
-                          dplyr::distinct(fullsumsarizer_filename,qc, .keep_all = TRUE)
-kable(list_of_bad_files)
+        dplyr::select(fullsumsarizer_filename,start_time,qc,HHID,logging_duration_days,datetime_placed,stove_descriptions) %>%
+        dplyr::distinct(fullsumsarizer_filename,qc, .keep_all = TRUE)
+kable(list_of_bad_files) #Plot the list of bad files so we can look at them and re-analyze after correcting any mistakes.
 
+
+#Create padded time series of cooking events, so there is an event for every day, rather than gaps.  This facilitates 
 ok_cooking_events_padded <- data.frame(stringsAsFactors = FALSE)
 #Replace NA with 0.
 #dplyr_if_else   <- function(x) { mutate_all(x, funs(ifelse(is.na(.), 0, .))) }
@@ -582,17 +608,15 @@ g10<- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,durat
   theme(legend.title = element_blank())
 g10
 
+
 #Overall usage fraction by group.  
  g11<- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,duration_minutes) %>%
   group_by(stove_descriptions) %>%
   summarise(avg=mean(duration_minutes,na.rm=TRUE)) %>%
   dplyr::mutate(usefraction = avg/sum(avg)) %>%
   ggplot(aes(x=1, usefraction,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
-  geom_bar(aes(fill = stove_descriptions), 
-           col = "black",
-           stat = 'identity', 
-           position = "fill",size=0) +
-  geom_text(size = 5, position = position_stack(vjust = 0.5))+
+  geom_col(aes(fill=stove_descriptions))+
+  geom_text(aes(group=stove_descriptions),position = position_stack(vjust = 0.5)) +
   ggtitle("Overall usage fraction") + 
   labs(y="Usage fraction",x="")  +
   theme(legend.title = element_blank())
@@ -603,20 +627,21 @@ g11
 #Overall usage fraction by group.  
  g111<- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,duration_minutes,group) %>%
   group_by(stove_descriptions,group) %>%
-  summarise(avg=mean(duration_minutes,na.rm=TRUE)) %>%
+  summarise(avg=mean(duration_minutes,na.rm=TRUE,keep_all=TRUE)) %>%
+  group_by(group) %>%
   dplyr::mutate(usefraction = avg/sum(avg)) %>%
-  ggplot(aes(x=1, usefraction,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
-  geom_bar(aes(fill = stove_descriptions), 
-           col = "black",
-           stat = 'identity', 
-           position = "fill",size=0) +
-  geom_text(size = 5, position = position_stack(vjust = 0.5))+
+  dplyr::filter(usefraction>0.001) %>%
+  ggplot(aes(x=1, usefraction*.8,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
+  geom_col(aes(fill=stove_descriptions))+
+  geom_text(aes(group=stove_descriptions),position = position_stack(vjust = 0.5)) +
   ggtitle("Overall usage fraction") + 
   facet_grid(~group,scales = "free", space = "free") + 
   labs(y="Usage fraction",x="")  +
   theme(legend.title = element_blank())
 g111
 #ggsave(filename="../figures/Overall_usage_fraction_bygroup.png", plot=g111,width = 6, height = 4)
+
+
 ```
 
 # Plot deployment details 

@@ -39,8 +39,8 @@ load_sumsarized <- function(substitution_list){
                            na = c("", "NA")
            ) %>%
           dplyr::mutate(filename = x) %>%
-          dplyr::mutate(day_month_year = as.Date(datetime)) %>%
-          dplyr::filter(day_month_year > min(day_month_year) & day_month_year < max(day_month_year)) #Remove data from the first and last days in the data file (the install and removal file)
+          dplyr::mutate(day_month_year = as.Date(datetime)) #%>%
+          #dplyr::filter(day_month_year > min(day_month_year) & day_month_year < max(day_month_year)) #Remove data from the first and last days in the data file (the install and removal file)
          
   ) %>%
     dplyr::bind_rows() %>%

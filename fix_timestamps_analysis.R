@@ -1,6 +1,5 @@
 source('r_scripts/load.R')
 source('r_scripts/iassist_convert_function.R')
-source('r_scripts/functions_chinadata.R') #This is for iassist data with multiple sheets in the same workbook...gets all the data.
 source('r_scripts/fix_timestamp_function.R')
 source('r_scripts/functions_thermocouple.R') #For the thermocouple logger used in the EPA STAR project.
 

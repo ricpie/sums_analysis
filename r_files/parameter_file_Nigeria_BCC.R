@@ -15,7 +15,9 @@ cooking_group <- 30 # x minute window for grouping events together.
 cooking_duration_minimum <- 9  #Minutes
 cooking_duration_maximum <- 1440 #Minutes
 logging_duration_minimum <- 1 #days.  Single file duration must be this long to be included in the analysis.
-total_days_logged_minimum <- 5 #Must have at least this many days for a households's stove to be included in the analysis.
+#If set to zero, it will not trim out any data, instead leaving the complete data sets available for analysis.  Trimming is done
+#to account for placement times/dates.
+total_days_logged_minimum <- 5 #Must have at least this many days for a households's stove to be included in the analysis. Default value is 5.
 
 
 

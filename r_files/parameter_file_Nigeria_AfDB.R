@@ -2,25 +2,30 @@
 
 project_name <- "Nigeria_AfDB"
 
-#Text associating a given stove code with the full name to use in figures.
+#This is a vraible associating a given stove code with the full name to use in figures. Make sure they correspond correctly (the first
+#stove code should be the same as the first stove_description)
+stove_codes <- data.frame(stove = as.factor(c("CC","CC(B)","LP","LPG","KE","KE1(B)","KE2(B)","KE(B)",  #The stove codes used as short-hand
+                                              "AMB","AMB(B)","KE1","KE1","KE2", "KE(1)", "KE(2)")),
+                          stove_descriptions = as.factor(c("CleanCook","CleanCook","LPG","LPG","Kerosene","Kerosene","Kerosene", #The full names used for plotting
+                                                           "Kerosene","Ambient","Ambient","Kerosene","Kerosene","Kerosene","Kerosene","Kerosene")))
 
-stove_codes <- data.frame(stove = as.factor(c("CC","CC(B)","LP","LPG","KE","KE1(B)","KE2(B)","KE(B)","AMB","AMB(B)","KE1","KE1","KE2", "KE(1)", "KE(2)")),
-                          stove_descriptions = as.factor(c("CleanCook","CleanCook","LPG","LPG","Kerosene","Kerosene","Kerosene","Kerosene","Ambient","Ambient","Kerosene","Kerosene","Kerosene","Kerosene","Kerosene")))
-
+#This variable defines the 'group' that is used in the analysis.  It could be Control and Intervention, or Before and After, or different
+#cities as shown here.
 stove_group_codes <- data.frame(group = as.factor(c("AKO","SHO","MUS")),  #Use these if there are different study arms.
                                 stove_groups = as.factor(c("AKO","SHO","MUS"))) #group variable in filter_sumsarized.R
 
-cooking_group <- 30 # x minute window for grouping events together.
-cooking_duration_minimum <- 5  #Minutes
-cooking_duration_maximum <- 1440 #Minutes
+cooking_group <- 30 # x minute window for grouping events together.  This is a common approach
+cooking_duration_minimum <- 5  #Minutes.  Is it possible or likely that there will be 5 to 10 minute cooking events.  We will remove shorter ones to reduce noise
+cooking_duration_maximum <- 1440 #Minutes.  Will stove uses last up to a day ever?  We will remove longer ones, assuming it is due to an error.
 logging_duration_minimum <- 1 #days.  Single file duration must be this long to be included in the analysis.
-total_days_logged_minimum <- 4 #Must have at least this many days for a households's stove to be included in the analysis.
+#If set to zero, it will not trim out any data, instead leaving the complete data sets available for analysis.  Trimming is done
+#to account for placement times/dates.
+total_days_logged_minimum <- 5 #Must have at least this many days for a households's stove to be included in the analysis. Default value is 5.
 
 #Set path to tracking sheet relative to 'SUMS processing' directory
-# path_tracking_sheet <- "SUMS Tracking data/AfBb_SUM_Tracking Data_Dec7_v2.xlsx"
 path_tracking_sheet <- "AfBb_SUM_Tracking Data_Jan23.xlsx"
 
-#Not yet implemented.
+#This is the study start and end date, to help correct errors in date entries
 start_date_range <- "2017-6-1" #Year-Month-Day format.  Do not include data before this in the analysis
 end_date_range <- "2018-4-1" #Do not include data after this in the analysis
 
