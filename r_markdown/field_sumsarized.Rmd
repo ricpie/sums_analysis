@@ -62,7 +62,7 @@ output:
   #Load metadata from the tracking sheet.  
   saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
   metadata <- readRDS("../r_files/metadata_download.RDS")
-  metadata <- dplyr::filter(metadata,!(is.na(datetime_launched)))
+  metadata <- dplyr::filter(metadata,!(is.na(filename)))
 
   print(HHID_remove) #List of houses that have been flagged for exclusion
   print(bad_files) #List of files that have been flagged for exclusion
@@ -75,6 +75,7 @@ output:
 #Import thermocouple data time series output from Sumsarizer.
 #datetime_placed is currently based on the metadata.  Flags data as good/bad based on the bad_files and HHID_remove variables.  Those are reapplied directly to the cooking events later, and filtered out if bad.
   if ( reimport_data == TRUE) {
+    
       sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remove,
                                                project_name,stove_codes,logging_duration_minimum) #HHID is grabbed from the filename.
           saveRDS(sumsarized_filtered, file ="../r_files/sumsarized_filtered.RDS")
@@ -244,7 +245,7 @@ ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,grepl("ok",qc)) 
         droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
 
 #Get list of files removed, and reasons why:
-not_ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,!grepl("ok",qc)) %>% #Keep only data marked 'ok'
+not_ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,!grepl("ok",qc)) %>% #Keep only data marked NOT 'ok'
         droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
 
 list_of_bad_files <-  dplyr::mutate(not_ok_cooking_events,logging_duration_days = as.character(sprintf("%0.2f", round(logging_duration_days, digits = 2)  ))) %>%
@@ -330,6 +331,17 @@ for (i in 1:length(unique(ok_cooking_events$filename))) {
 
 
 ok_datasummary <- summarise_all(ok_cooking_events,funs(n_distinct(.)))
+
+#Summarize use for each household
+stats_grouped_by_hhid <- dplyr::group_by(ok_cooking_events_padded,HHID,group) %>%
+    # calculate events per day for each household and stove.  Can then take summary stats of those.
+    dplyr::summarise(events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
+                     minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
+                     minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
+                     days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
+                     events = n()) 
+kable(stats_grouped_by_hhid, digits=2)
+
 
 #Summarize use for each household and stove.
 stats_grouped_by_hhid_stove <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
@@ -570,6 +582,7 @@ g8 <- ggplot(ok_cooking_events, aes(start_hour, fill = stove_descriptions,
       ggtitle("stove use density") + 
       facet_grid(~group,scales = "free", space = "free") + 
       theme(plot.title = element_text(hjust = 0.5)) +
+      scale_x_continuous(breaks=seq(0,24,6)) + 
       ylim(0, 0.15)
 g8
 #ggsave(g8,filename=paste("../figures/Density",y,".png",sep=""))
