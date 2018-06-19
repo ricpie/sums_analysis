@@ -23,7 +23,7 @@ output:
   #Users should must make sure the two variables in this chunk are defined as desired.
 
   #1. Set to TRUE if we need to reimport data SUMSARIZED, but this is slower.  Set to FALSE if already imported and no new data has been added.
-  reimport_data <- FALSE 
+  reimport_data <- FALSE
   
   #2.  Make sure the parameter file is for the project you are using.  The parameter file must be located in the r_files folder.
   source('../r_files/parameter_file_Nigeria_AfDB.R') 
@@ -341,6 +341,16 @@ stats_grouped_by_hhid <- dplyr::group_by(ok_cooking_events_padded,HHID,group) %>
                      days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
                      events = n()) 
 kable(stats_grouped_by_hhid, digits=2)
+
+#Summarize use for each household
+stats_grouped_by_hhid_only <- dplyr::group_by(ok_cooking_events_padded,HHID) %>%
+    # calculate events per day for each household and stove.  Can then take summary stats of those.
+    dplyr::summarise(events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
+                     minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
+                     minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
+                     days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
+                     events = n()) 
+kable(stats_grouped_by_hhid_only, digits=2)
 
 
 #Summarize use for each household and stove.
