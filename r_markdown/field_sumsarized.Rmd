@@ -78,7 +78,7 @@ output:
     
       sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remove,
                                                project_name,stove_codes,logging_duration_minimum) #HHID is grabbed from the filename.
-          saveRDS(sumsarized_filtered, file ="../r_files/sumsarized_filtered.RDS")
+      saveRDS(sumsarized_filtered, file ="../r_files/sumsarized_filtered.RDS")
   } else {
       sumsarized_filtered <- readRDS("../r_files/sumsarized_filtered.RDS") #Loads the already-imported filtered sumsarized data if reimport_data is set to FALSE.
   }
@@ -304,13 +304,13 @@ for (i in 1:length(unique(ok_cooking_events$filename))) {
         # and then assign 0 to them.
         #merged.data <-dplyr_if_else(merged.data)
 
-
         ok_cooking_events_padded <- rbind(ok_cooking_events_padded,merged.data)
     }
 }
     #time format was messed up somehow in making the padded set, correct it here.
     ok_cooking_events_padded <- dplyr::mutate(ok_cooking_events_padded,datetime_removal = as.POSIXct(datetime_removal,origin = "1970-1-1", tz = "GMT")) %>%
       dplyr::arrange((start_time)) %>%
+      dplyr::arrange(desc(stove_descriptions)) %>%  #Sort so we toss the earlier end dates when deleting distinct values.
       dplyr::mutate(month_year = format(start_time,"%b-%y")) %>%
       dplyr::mutate(month_year = factor(month_year, unique(month_year), ordered=TRUE)) %>%
       dplyr::mutate(qc = "ok") #New qc values default to zero during padding, but they are all already qc-filtered, so reset to TRUE
@@ -332,15 +332,6 @@ for (i in 1:length(unique(ok_cooking_events$filename))) {
 
 ok_datasummary <- summarise_all(ok_cooking_events,funs(n_distinct(.)))
 
-#Summarize use for each household
-stats_grouped_by_hhid <- dplyr::group_by(ok_cooking_events_padded,HHID,group) %>%
-    # calculate events per day for each household and stove.  Can then take summary stats of those.
-    dplyr::summarise(events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
-                     minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
-                     minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
-                     days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
-                     events = n()) 
-kable(stats_grouped_by_hhid, digits=2)
 
 #Summarize use for each household
 stats_grouped_by_hhid_only <- dplyr::group_by(ok_cooking_events_padded,HHID) %>%
@@ -352,11 +343,26 @@ stats_grouped_by_hhid_only <- dplyr::group_by(ok_cooking_events_padded,HHID) %>%
                      events = n()) 
 kable(stats_grouped_by_hhid_only, digits=2)
 
+#Summarize use for each household and group
+stats_grouped_by_hhid <- dplyr::group_by(ok_cooking_events_padded,HHID,group) %>%
+    # calculate events per day for each household and stove.  Can then take summary stats of those.
+    dplyr::summarise(events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
+                     minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
+                     minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
+                     days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
+                     events = n()) 
+kable(stats_grouped_by_hhid, digits=2)
+
+#Summarize use for each unique stove.  HHID by stove-descriptions, so if a household has two LPG stoves, and they have the same description, it will look like one stove.  If it has a description like LPG-left and LPG-right it will be seen as a different stove.
+stats_grouped_by_stove <- dplyr::mutate(ok_cooking_events_padded,stove_hhid = paste0(HHID,stove_descriptions)) %>%
+                    dplyr::group_by(stove_hhid) 
+print(paste(length(unique(stats_grouped_by_stove$stove_hhid)), "stoves monitored in total"))
+
 
 #Summarize use for each household and stove.
 stats_grouped_by_hhid_stove <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
     # calculate events per day for each household and stove.  Can then take summary stats of those.
-    dplyr::summarise(events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
+    dplyr::summarise(stoves=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
                      minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
                      minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
                      days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
@@ -457,9 +463,17 @@ filtered_files <- unique(dplyr::filter(sumsarized_filtered,grepl("ok",qc)) %>% d
 
 ```{r boxplots_usage, fig.width=7, fig.height=7}
 
-
 give.n <- function(x){
    return(c(y = 0, label = length(x)))
+}
+
+give.mean <- function(x){
+   return(c(y =mean(x)+.1, label = round(mean(x),digits=2)))
+}
+
+
+give.mean_minutes <- function(x){
+   return(c(y =mean(x)+10, label = round(mean(x),digits=2)))
 }
 
 #To make box and whiskers quantiles rather than IQRs.
@@ -469,13 +483,16 @@ f <- function(x) {
   r
 }
 
-
 #Plot average uses per day, by group, using the padded data set. (one data point per household-stove combo)
-g1<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
-  dplyr::summarise(avg_events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year))) %>%
-  ggplot(aes(x=stove_descriptions, y = avg_events_per_day)) +
+grouped_data_means<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
+  dplyr::summarise(avg_events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year))) 
+
+g1 <- ggplot(grouped_data_means,aes(x=stove_descriptions, y = avg_events_per_day)) +
   stat_summary(fun.data = f, geom="boxplot") +  
-    geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", 
+               shape=18, size=4.5,alpha = 0.5)+
+  stat_summary(fun.data = give.mean, geom = "text",colour="blue") + 
+  geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
   #facet_grid(stove_use_category~group,scales = "free", space = "free") + 
   stat_summary(fun.data = give.n, geom = "text") + 
   facet_grid(~group,scales = "free", space = "free") + 
@@ -508,7 +525,11 @@ g11
 g2 <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
   dplyr::summarise(avg_events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year))) %>%
   ggplot(aes(x=stove_descriptions, y = avg_events_per_day)) +
-  stat_summary(fun.data = f, geom="boxplot") +    geom_jitter(height = 0,width = 0.2,alpha = 0.25) + 
+  stat_summary(fun.data = f, geom="boxplot") +    
+  stat_summary(fun.y=mean, colour="blue", geom="point", 
+               shape=18, size=4.5,alpha = 0.5)+
+  stat_summary(fun.data = give.mean, geom = "text",colour="blue") + 
+  geom_jitter(height = 0,width = 0.2,alpha = 0.25) + 
   labs(y="Average uses/day",x="") + 
   stat_summary(fun.data = give.n, geom = "text") + 
   theme(axis.text.x = element_text(angle = 60, hjust = 1)) 
@@ -519,7 +540,11 @@ g2
 g3<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
   dplyr::summarise(avg_events_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>%
   ggplot(aes(x=stove_descriptions, y = avg_events_per_day)) +
-  stat_summary(fun.data = f, geom="boxplot") +   geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
+  stat_summary(fun.data = f, geom="boxplot") +   
+  geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", 
+               shape=18, size=4.5,alpha = 0.5)+
+  stat_summary(fun.data = give.mean_minutes, geom = "text",colour="blue") + 
   facet_grid(~group,scales = "free", space = "free") + 
   labs(y="Average minutes used per day",x="") + 
   stat_summary(fun.data = give.n, geom = "text") + 
@@ -532,6 +557,9 @@ g4<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>
   dplyr::summarise(minutes_per_day_stove_hhid=sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE)) %>%  
   ggplot(aes(x=stove_descriptions, y = minutes_per_day_stove_hhid)) + 
   stat_summary(fun.data = f, geom="boxplot") + 
+  stat_summary(fun.y=mean, colour="blue", geom="point", 
+               shape=18, size=4.5,alpha = 0.5)+
+  stat_summary(fun.data = give.mean_minutes, geom = "text",colour="blue") + 
   geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
   stat_summary(fun.data = give.n, geom = "text") + 
   labs(y="Average event duration by household (minutes)",x="") + 
@@ -698,6 +726,73 @@ g6
 ```
 
 
+
+# Plot stacking 
+
+```{r plot_stacking, fig.width=7, fig.height=7}
+
+# Initialize stacking_stove_days dataframe
+stacking_stovedays = data.frame(group=character(),stove_descriptions=character(),HHID=character(),
+                    percent_stovedays=character())
+HH_list <- unique(ok_cooking_events_padded$HHID)
+#Loop through households, then through first stove, then through second. Get percent stove days in second loop.
+for (j in 1:length(unique(HH_list))) {
+  temp_events <- dplyr::filter(ok_cooking_events_padded, HHID==HH_list[j]) #Subset of hhid j
+  temp_stoves <- unique(temp_events$stove_descriptions)
+  length_temp_stoves <- length(unique(temp_events$stove_descriptions))
+  
+    for (jj in 1:length_temp_stoves) { #For the first stove
+      temp_events_overlap1 <- dplyr::filter(temp_events, stove_descriptions==temp_stoves[jj]) %>% #Subset of stove jj
+                              dplyr::group_by(day_month_year) %>% #Get data from unique days only
+                              dplyr::select(group,stove_descriptions,HHID,use_flag,day_month_year,start_time,end_time) #Keep all data, for the time overlap calc.
+      temp_events_stove1 <- dplyr::filter(temp_events_overlap1,row_number(day_month_year) == 1)) #Keep only first row, for the stove-days calc
+
+      
+      #Get the percent stovedays for the solo stoves.
+      percent_stovedays <- sum(temp_events_stove1$use_flag)/dim(temp_events_stove1)[1] *100
+      stacking_stovedays <- rbind(stacking_stovedays,
+                              data.frame(group=temp_events_stove1$group[1],
+                                         stove_descriptions=temp_events_stove1$stove_descriptions[1],
+                                         HHID=temp_events_stove1$HHID[1], percent_stovedays))
+
+        if (length_temp_stoves>1 && jj<length_temp_stoves) {
+            for (jjj in (jj+1):length_temp_stoves) { #For the second stove.
+          
+                temp_events_stove2 <- dplyr::filter(temp_events, stove_descriptions==temp_stoves[jjj]) %>% #Subset of stove jj
+                            dplyr::group_by(day_month_year) %>% #Get data from unique days only
+                            dplyr::select(group,stove_descriptions,HHID,use_flag,day_month_year,start_time,end_time) %>%
+                            dplyr::filter(row_number(day_month_year)) %>%
+                            dplyr::inner_join(temp_events_stove1,by = "day_month_year")
+                
+                #How is this going to join - every combo of day-month-year?
+                temp_events_overlap2 <- dplyr::filter(temp_events, stove_descriptions==temp_stoves[jjj]) %>% #Subset of stove jj
+                            dplyr::group_by(day_month_year) %>% #Get data from unique days only
+                            dplyr::select(group,stove_descriptions,HHID,use_flag,day_month_year,start_time,end_time) %>%
+                            dplyr::outer_join(temp_events_overlap1,by = "day_month_year")
+
+                percent_stovedays2 <- sum(temp_events_stove2$use_flag.x==TRUE & temp_events_stove2$use_flag.y==TRUE)/
+                                      dim(temp_events_stove1)[1] *100
+                
+                #Get the percent stove days for the stove combos
+                stacking_stovedays <- rbind(stacking_stovedays,
+                            data.frame(group=temp_events_stove2$group.x[1], 
+                                       stove_descriptions=paste(temp_events_stove2$stove_descriptions.x[1],'+',
+                                                               temp_events_stove2$stove_descriptions.y[1]),
+                                        HHID=temp_events_stove2$HHID.x[1], percent_stovedays = percent_stovedays2))
+    
+            }
+        }
+    }
+}
+
+gg_stack <- ggplot(stacking_stovedays,aes(x=stove_descriptions, y = percent_stovedays,color = stove_descriptions)) +
+    stat_summary(fun.data = f, geom="boxplot") +
+    geom_jitter(alpha = 0.25,position = position_dodge(width=0.75)) +
+    labs(y="Percent stove-days",x="") + 
+    facet_wrap(~group,scales = "free") + 
+    theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.title = element_blank())
+gg_stack
+```
 
 # Summary
 
