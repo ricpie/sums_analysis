@@ -572,6 +572,22 @@ g3<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>
 g3
 #ggsave(filename="../figures/AverageTimeUsedPerDay_All.png", plot=g3,width = 6, height = 4)
 
+#Plot average minutes used per day for each stove-household combination
+g33<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
+  dplyr::summarise(avg_events_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>%
+  ggplot(aes(x=stove_descriptions, y = avg_events_per_day)) +
+  stat_summary(fun.data = f, geom="boxplot") +   
+  geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", 
+               shape=18, size=4.5,alpha = 0.5)+
+  stat_summary(fun.data = give.mean_minutes, geom = "text",colour="blue") + 
+  labs(y="Average minutes used per day",x="") + 
+  stat_summary(fun.data = give.n, geom = "text") + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+g33
+#ggsave(filename="../figures/AverageTimeUsedPerDay_byStove.png", plot=g33,width = 6, height = 4)
+
+
 #Average event duration
 g4<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
   dplyr::summarise(minutes_per_day_stove_hhid=sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE)) %>%  
