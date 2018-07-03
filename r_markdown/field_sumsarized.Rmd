@@ -59,13 +59,20 @@ output:
   #Save the sumsarized data to a single dataframe called sumsarized.RDS, located in r_files.
   sumsarized <- readRDS("../r_files/sumsarized.RDS") 
 
-  #Load metadata from the tracking sheet.  
+  #Load metadata from the tracking sheet
   saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
   metadata <- readRDS("../r_files/metadata_download.RDS")
   metadata <- dplyr::filter(metadata,!(is.na(filename)))
-
-  print(HHID_remove) #List of houses that have been flagged for exclusion
-  print(bad_files) #List of files that have been flagged for exclusion
+  #Start date for eligible data
+  print(start_date_range)
+  #End date for eligible data
+  print(end_date_range)
+  #Minutes to group cooking events by
+  print(cooking_group)
+  #List of houses that have been flagged for exclusion
+  print(HHID_remove)
+  #List of files that have been flagged for exclusion
+  print(bad_files) 
 ```
 
 # Tidy
@@ -113,13 +120,49 @@ kable(stove_codes)
    #Grab data from file i, and keep only the entries that are marked as cooking
    temp <- dplyr::filter(sumsarized_filtered,file_indices == i) %>%
       dplyr::filter(state == TRUE) %>% dplyr::filter(!duplicated(datetime)) 
-    tempALL <- dplyr::filter(sumsarized_filtered,file_indices == i) 
+  tempALL <- dplyr::filter(sumsarized_filtered,file_indices == i) 
    
    qc_temp <- "ok" #Default to ok data quality, gets demoted based on later checks.
 
-   if (dim(temp)[1]>1 && any(temp$state==TRUE)) {
+     #Organize/check/fix datetimes of sum placements and removals. If there is a start and end time available for the monitoring period, use it to keep the data from the file.  Disregard this if the datetime_removal is NA, since it means we don't have a fixed known end date.  In this case we assume the end of the file is the end of the monitoring preiod and keep all the data from the given file.  Provide the start and end date in the event-building loop below.
       min_time_file = min(tempALL$datetime)
       max_time_file = max(tempALL$datetime)
+   if (max_time_file>end_date_range | min_time_file<start_date_range) {   #datetime_placed is changed to the local file value if it is below the start_date_range, and datetime_placed is too, according to the end_date_range
+         datetime_placed_temp = min_time_file
+         datetime_removal_temp = max_time_file 
+         qc_temp <- "out_of_placement_range" #These get filtered out, assuming it represents poorly time formatted data.
+   } else if (is.na(as.POSIXct(temp$datetime_removal[1])) | is.na(as.POSIXct(temp$datetime_placed[1]))){  #If date is NA, use the file's dates.  They have already been midnight-trimmed in the load_data.r function.
+         datetime_placed_temp = min_time_file
+         datetime_removal_temp = max_time_file
+         qc_temp <- "NA_metadata"
+   } else if (min_time_file> as.POSIXct(temp$datetime_placed[1])) {  #If placement time is before time of first data point, switch to first data point.
+         datetime_placed_temp = min_time_file
+         datetime_removal_temp = max_time_file
+         qc_temp <- "placement_before_data"
+   } else if (as.POSIXct(min(temp$datetime_placed))> as.POSIXct(max(temp$datetime_removal))) {  #If placement time is greater than the datetime placed, switch them, it's a mistake.
+         datetime_placed_temp = min_time_file
+         datetime_removal_temp = max_time_file 
+         qc_temp <- "placement_greaterthan_removal"
+   } else { #If not NA, a value must have been found in the meta data, use it.
+         datetime_placed_temp = as.POSIXct(min(temp$datetime_placed))
+         datetime_removal_temp = as.POSIXct(max(temp$datetime_removal))
+         qc_temp <- "metadata_dates_used"
+   }      
+  
+  #Separate case to handle data from SUMs placed before start_date_range (possible deployment start date)
+   if (min_time_file<start_date_range) {  
+         datetime_placed_temp = as.POSIXct(start_date_range)
+         qc_temp <- "out_of_placement_range" #These get filtered out, assuming it represents poorly time formatted data.
+   }
+   if (max_time_file>end_date_range) {  
+         datetime_removal_temp = as.POSIXct(end_date_range) 
+         qc_temp <- "out_of_placement_range" #These get filtered out, assuming it represents poorly time formatted data.
+   }
+
+
+    #Put cooking events into a single table.
+   if (dim(temp)[1]>1 && any(temp$state==TRUE)) {
+
       time_difference <- as.numeric(difftime(temp$datetime,lag(temp$datetime),units="mins"))
       time_difference <- time_difference[!is.na(time_difference)] #
      
@@ -128,29 +171,7 @@ kable(stove_codes)
           if (tail(temp$state,n=1) == TRUE){dim(temp)[1]}) #End of cooking event. 
         #Tail part is in case the time series ends while still cooking...need to account for th
 
-      #Organize/check/fix datetimes of sum placements and removals. If there is a start and end time available for the monitoring period, use it to keep the data from the file.  Disregard this if the datetime_removal is NA, since it means we don't have a fixed known end date.  In this case we assume the end of the file is the end of the monitoring preiod and keep all the data from the given file.  Provide the start and end date in the event-building loop below.
-       if (max_time_file>end_date_range | min_time_file<start_date_range) {   #datetime_placed is changed to the local file value if it is below the start_date_range, and datetime_placed is too, according to the end_date_range
-             datetime_placed_temp = min_time_file
-             datetime_removal_temp = max_time_file 
-             qc_temp <- "out_of_placement_range" #These get filtered out, assuming it represents poorly time formatted data.
-       } else if (is.na(as.POSIXct(temp$datetime_removal[1])) | is.na(as.POSIXct(temp$datetime_placed[1]))){  #If date is NA, use the file's dates.  They have already been midnight-trimmed in the load_data.r function.
-             datetime_placed_temp = min_time_file
-             datetime_removal_temp = max_time_file
-             qc_temp <- "NA_metadata"
-       } else if (min_time_file> as.POSIXct(temp$datetime_placed[1])) {  #If placement time is before time of first data point, switch to first data point.
-             datetime_placed_temp = min_time_file
-             datetime_removal_temp = max_time_file
-             qc_temp <- "placement_before_data"
-       } else if (as.POSIXct(min(temp$datetime_placed))> as.POSIXct(max(temp$datetime_removal))) {  #If placement time is greater than the datetime placed, switch them, it's a mistake.
-             datetime_placed_temp = min_time_file
-             datetime_removal_temp = max_time_file 
-             qc_temp <- "placement_greaterthan_removal"
-       } else { #If not NA, a value must have been found in the meta data, use it.
-             datetime_placed_temp = as.POSIXct(min(temp$datetime_placed))
-             datetime_removal_temp = as.POSIXct(max(temp$datetime_removal))
-             qc_temp <- "metadata_dates_used"
-       }      
-      
+
       #Add cooking events to the cooking_events data frame.
       cooking_events <- rbind(cooking_events,
                   data.frame(start_time= as.POSIXct(temp$datetime[breakstart]),
@@ -171,6 +192,7 @@ kable(stove_codes)
     } else{
          #If no cooking events are found, still create an entry, though with the use flag as FALSE, so 
          #that we know that there was data collected and zero events in that period.  Set the use_flag to true here to differntiate from the too-short cooking events.
+      
        temp <- dplyr::filter(sumsarized_filtered,file_indices == i)  #Create new temp here so 
        #we can get info about the sample that does not have cooking events.
        cooking_events <- rbind(cooking_events,
@@ -180,9 +202,9 @@ kable(stove_codes)
                   HHID=as.factor(temp$HHID[1]), 
                   logger_id=factor(temp$logger_id[1]),
                   stove=factor(temp$stove[1]), 
-                  logging_duration_days = as.numeric(difftime(max(temp$datetime),min(temp$datetime),units = "days")),
-                  datetime_placed = min(temp$datetime),
-                  datetime_removal = max(temp$datetime),
+                  logging_duration_days = as.numeric(difftime(datetime_removal_temp,datetime_placed_temp,units = "days")),
+                  datetime_placed = datetime_placed_temp,
+                  datetime_removal = datetime_removal_temp,
                   file_indices = temp$file_indices[1], 
                   filename = temp$filename[1],
                   fullsumsarizer_filename = temp$fullsumsarizer_filename[1],
@@ -190,7 +212,6 @@ kable(stove_codes)
                   qc_dates = qc_temp,
                   use_flag=FALSE))
     }
-   
  }
 
 
@@ -203,6 +224,8 @@ kable(stove_codes)
                                                      "excluded_file_list","ok")) %>% #Flag data from bad files
                           dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID),
                                                      "excluded_household_list",qc)) %>% #Flag data from HHID's that should be removed.
+                          dplyr::mutate(qc = if_else(start_time>end_date_range | start_time<start_date_range,
+                                                     "outside study date range",qc)) %>%
                           dplyr::mutate(qc = if_else(grepl("amb",fullsumsarizer_filename,ignore.case=TRUE),"ambient",qc))  #Flag data from HHID's that should be removed.
                
 ```
@@ -435,16 +458,16 @@ openxlsx::write.xlsx(list_of_datasets, file = paste0("Summary Statistics ",forma
 ```{r plot_timeseries, fig.width=10, fig.height=70}
 
 #Plot time series for each household, colored by filename.  For data completion purposes.
-field_timeseries_plot(sumsarized_filtered, "stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
-
+gg <- field_timeseries_plot(sumsarized_filtered, "stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
+gg
 ```
 
 # Plot data time series, removing flagged files and households
 * Plot usage rates (uses/day) by stove type, and region
 ```{r plot_nonflagged_timeseries, fig.width=10, fig.height=70}
 #Plot time series for each household, colored by filename.  Filtered out bad qc data
-field_timeseries_plot(dplyr::filter(sumsarized_filtered,grepl("ok",qc)),"stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
-
+gg <-field_timeseries_plot(dplyr::filter(sumsarized_filtered,grepl("ok",qc)),"stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
+gg
 ```
 
 # List of files without associated HHID and metadata from the tracking sheet.
@@ -504,25 +527,6 @@ g1 <- ggplot(grouped_data_means,aes(x=stove_descriptions, y = avg_events_per_day
   theme(legend.title = element_blank())
 g1
 #ggsave(filename="../figures/AverageUsesPerDay_byStoveGrouppadded.png", plot=g1,width = 6, height = 4)
-
-#Plot average uses per day, NOT by group, using the padded data set. (one data point per household-stove combo)
-stove_data_means<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
-  dplyr::summarise(avg_events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year))) 
-
-g11 <- ggplot(stove_data_means,aes(x=stove_descriptions, y = avg_events_per_day)) +
-  stat_summary(fun.data = f, geom="boxplot") +  
-  stat_summary(fun.y=mean, colour="blue", geom="point", 
-               shape=18, size=4.5,alpha = 0.5)+
-  stat_summary(fun.data = give.mean, geom = "text",colour="blue") + 
-  geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
-  stat_summary(fun.data = give.n, geom = "text") + 
-  labs(y="Average uses per day",x="") + 
-  ggtitle("Average uses per day for each household-stove combination") + 
-  theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
-  theme(legend.title = element_blank())
-g11
-#ggsave(filename="../figures/AverageUsesPerDay_byStove.png", plot=g11,width = 6, height = 4)
-
 
 #Plot uses per day, by group, using the padded data set. (one data point per day-household-stove combo)
 g111<- dplyr::group_by(ok_cooking_events_padded, stove_descriptions, day_month_year, HHID, group) %>%
@@ -607,7 +611,6 @@ g4
 ```
 
 # Time trend plots
-
 ```{r plot_time_trends, fig.width=8, fig.height=7}
 
 
@@ -621,7 +624,6 @@ g5
 #ggsave(g5,filename=paste("../figures/DurationbyDayofWeek",y,".png",sep=""))
 
 #Monthly usage summary
-
 monthlyboxplots <-    ggplot(stats_grouped_by_hhid_stove_month,aes(x=month_year, y = events_per_day,color = stove_descriptions)) +
     stat_summary(fun.data = f, geom="boxplot",position = position_dodge(width=0.75)) +
     geom_jitter(alpha = 0.25,position = position_dodge(width=0.75)) +
@@ -644,8 +646,8 @@ g7 <-dplyr::group_by(ok_cooking_events_padded,day_month_year,stove_descriptions,
     labs(y="% stove days",x="") + 
     theme(legend.title = element_blank()) + 
     theme(axis.text.x = element_text(angle = 60, hjust = 1))
-  g7
-          #ggsave(g7,filename=paste("../figures/PercentStoveDaysByGroup.png",sep=""))
+g7
+#ggsave(g7,filename=paste("../figures/PercentStoveDaysByGroup.png",sep=""))
 
 
 #Time of day trend.  Based on start time, change it to middle of event?  Remove groups with less than 5 hh's?
@@ -673,6 +675,20 @@ g8
   labs(y="Minutes per day",x="") +
   ylim(0,200)
  g12
+#ggsave(filename="../figures/Overall_usage_fraction_byGroup.png", plot=g12,width = 6, height = 4)
+ 
+ 
+#Usage time series by minutes used each day, by group and stove type  
+ g13<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,day_month_year) %>%
+  dplyr::summarise(mean_daily_use_tseries=mean(duration_minutes,na.rm=TRUE)) %>%
+  ggplot(aes(day_month_year, y=mean_daily_use_tseries,color = stove_descriptions)) + #,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
+  geom_smooth()+
+  geom_point(alpha = 0.25)+
+  facet_grid(~stove_descriptions,scales = "free", space = "free") + 
+  ggtitle("Daily average uses by stove") + 
+  labs(y="Minutes per day",x="") +
+  ylim(0,200)
+ g13
 #ggsave(filename="../figures/Overall_usage_fraction.png", plot=g12,width = 6, height = 4)
 
 ```
@@ -782,7 +798,7 @@ gg_stack <- ggplot(stacking_stovedays,aes(x=stove_descriptions, y = percent_stov
   
     theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.title = element_blank())
 gg_stack
-ggsave(filename="../figures/stacking_plot.png", plot=gg_stack,width = 8, height = 4)
+# ggsave(filename="../figures/stacking_plot.png", plot=gg_stack,width = 8, height = 4)
 
 
 ```
