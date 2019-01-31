@@ -25,7 +25,7 @@ l_ply(files_plot, fileCleanerTimeStamp, .progress='text') #Fix timestamps and he
 #l_ply(files_plot, iassist.import, .progress='text', zip=F)# Convert iassist data to ibutton formatted data.
 
 
-filerun <- files_plot[31]
+filerun <- files_plot[1]
 
 
 

@@ -68,13 +68,25 @@ fileCleanerTimeStamp <- function(filerun){
   datas[Unit=="F", Value:=(Value-32) * 5/9]
   datas[Unit=="F", Unit:="C"]
   
+  
+  #NA-replace data from disconnected values
+  datas$Value[datas$Value < -270] <- NA #dplyr::mutate(datas,Value = if_else(Value < 0,0,Value)) #Remove -270 data that sometimes appears due to disconnected Wellzions.
+  
   #Look for inverted data, which may be the cae if the thermocouples are connected with the opposite polarity.  
+  
+  
   #Flip if more than 1% of the data is negative
-  if (quantile(datas$Value,.01) < 0) {
+  # if (quantile(datas$Value,.001) < 0) {
+  #   datas$Value <- 40 - datas$Value
+  # }
+
+  #Flip this file only. BAS_21035_4_DL1
+  if (grepl('BAS_21035_4_DL1',filerun,fixed=TRUE)) {
     datas$Value <- 40 - datas$Value
   }
   
   #Get the number of unique values in the first date position.
+  #These functions are pretty slow unfortunately.
   date_string_start_fun <- function(xx,y) {substring(xx,1,sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[1])-1) }
   date_string_middle_fun <- function(xx,y,start,end) {substring(xx, sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[start])+1
                                                                 ,sapply(xx, function(x) unlist(gregexpr(y,x,perl=TRUE))[end])-1) }
@@ -97,6 +109,8 @@ fileCleanerTimeStamp <- function(filerun){
   dir.create(path=paste(dirname(filerun),'/Corrected Timestamps',sep=""), showWarnings = FALSE)
   
   options(warn=-1)
+  
+  # datas <- dplyr::mutate(datas,Value = if_else(Value < 0,quantile(Value, .05),Value)) #Remove -270 data that sometimes appears due to disconnected Wellzions.
   
   #If there are more unique values in DT1 than DT2, then the first value is days. This could be defeated if there is only one day of data. Would also not work if there are a lot of different formats with varying levels of leading zeros.
   newfilename = paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep="")

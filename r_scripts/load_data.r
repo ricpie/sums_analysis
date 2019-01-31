@@ -39,23 +39,23 @@ load_sumsarized <- function(substitution_list){
                            na = c("", "NA")
            ) %>%
           dplyr::mutate(filename = x) %>%
-          dplyr::mutate(day_month_year = as.Date(datetime)) #%>%
-          #dplyr::filter(day_month_year > min(day_month_year) & day_month_year < max(day_month_year)) #Remove data from the first and last days in the data file (the install and removal file)
+          dplyr::mutate(day_month_year = as.Date(datetime)) %>%
+          dplyr::filter(day_month_year > min(day_month_year) & day_month_year < max(day_month_year)) #Remove data from the first and last days in the data file (the install and removal file)
          
   ) %>%
     dplyr::bind_rows() %>%
     # convert time to secs in day and fix file problems
-    dplyr::mutate(datetime = parse_date_time(gsub("/00", "/16", datetime),orders = c("y-m-d HMS", "m/d/y HMS"))) %>%
+    dplyr::mutate(datetime = parse_date_time(gsub("/00", "/16", datetime),orders = c("y-m-d HMS", "m/d/y HMS"))) %>% #For AfDB Nigeria only.
     #Do some file name formatting, looking for common errors, and unique ones.
-    dplyr::mutate(sumsarizer_filename = if_else(grepl("DL4",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL4.csv", sumsarizer_filename),sumsarizer_filename)) %>% #Special case for importing DL4 and DL5, because they were not renamed properly.
-    dplyr::mutate(sumsarizer_filename = if_else(grepl("DL5",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL5.csv", sumsarizer_filename),sumsarizer_filename))%>%
+    dplyr::mutate(sumsarizer_filename = if_else(grepl("DL4",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL4.csv", sumsarizer_filename),sumsarizer_filename)) %>% #Special case for importing DL4 and DL5, for AfDB Nigeria only.
+    dplyr::mutate(sumsarizer_filename = if_else(grepl("DL5",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL5.csv", sumsarizer_filename),sumsarizer_filename))%>% #For AfDB Nigeria only.
     dplyr::mutate(fullsumsarizer_filename = sumsarizer_filename) %>%
     dplyr::mutate(sumsarizer_filename = substring(sumsarizer_filename,
-                                       sapply(sumsarizer_filename, function(x) unlist(gregexpr('/',x,perl=TRUE))[1])+1,100)) %>%
+                                       sapply(sumsarizer_filename, function(x) unlist(gregexpr('/',x,perl=TRUE))[1])+1,100)) %>% #For AfDB Nigeria only.
     # dplyr::mutate(sumsarizer_filename = gsub("KE", "_KE", sumsarizer_filename,ignore.case = TRUE)) %>% # the line below does this, but general and with the names given in the main file.
-    dplyr::mutate(sumsarizer_filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,sumsarizer_filename,ignore.case = TRUE)) %>% #Make sure the underscores are placed before the stove type.
-    dplyr::mutate(sumsarizer_filename = gsub(" ","_",sumsarizer_filename))  %>%
-    dplyr::mutate(sumsarizer_filename = gsub("__","_",sumsarizer_filename)) %>%
+    dplyr::mutate(sumsarizer_filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,sumsarizer_filename,ignore.case = TRUE)) %>% #Make sure the underscores are placed before the stove type.#For AfDB Nigeria only.
+    dplyr::mutate(sumsarizer_filename = gsub(" ","_",sumsarizer_filename))  %>%#For AfDB Nigeria only.
+    dplyr::mutate(sumsarizer_filename = gsub("__","_",sumsarizer_filename)) %>%#For AfDB Nigeria only.
     dplyr::mutate(filename = substring(filename, sapply(filename, function(x) tail(unlist(gregexpr('/',x,perl=TRUE)),1)[1])+1, 100)) %>%
     #dplyr::mutate(filename = gsub("KE", "_KE", filename,ignore.case = TRUE)) %>%
     dplyr::mutate(filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,filename,ignore.case = TRUE)) %>%#Make sure the underscores are placed before the stove type.
@@ -93,8 +93,8 @@ load_meta_download <- function(xx){
     "amb.time_placed","amb.location","comments")
   
   asdf<- read_excel(paste0("../../","SUMs Tracking Data","/",xx, collapse=NULL),
-          sheet = 'AllData',skip = 1,
-          col_names = column_names,
+                    sheet = 'AllData',range = "A3:BN700",
+                    col_names = column_names,
           
           col_types = c("text","text","text","numeric",
                         "text","date","date","date","date","date","text",
@@ -203,7 +203,7 @@ load_meta_download_v2 <- function(path_tracking_sheet){
   column_names <- c("HHID","phone","hh_contact","enumerator","deployment","number_loggers_placed_home",variers)
   
   asdf<- read_excel(paste0("../../","SUMs Tracking Data","/",path_tracking_sheet, collapse=NULL),
-                    sheet = 'AllData',skip = 1,
+                    sheet = 'AllData',range = "A3:BR700",
                     col_names = column_names,
                     
                     col_types = c("text","text","text","text","text","numeric", #Non-variers 
@@ -274,45 +274,42 @@ load_meta_download_v2 <- function(path_tracking_sheet){
 
 
 
-#________________________________________________________
-#Load JSON tracking meta data download sheet(s)
-#________________________________________________________
-
 load_meta_json <- function(xx){
-  xx <- "SUMS Tracking data/Kigeme_SUMs_V1_results (2).json"
-  xx<-paste0("../",xx, collapse=NULL)
-
+  # xx <- "SUMS Tracking data/Kigeme_SUMs_V1_results (2).json"
+  # xx <- "SUMS Tracking data/Kigeme_SUMs_V1_results-4.json"
+  # xx<- '~/Dropbox/Kigeme SUMs Analysis/SUMS Tracking data/Kigeme_SUMs_V1_results-4.json'
+  # xx<-paste0("../",xx, collapse=NULL)
   
-data <- stream_in(file(xx)) 
-for (ii in 1:dim(data)[1]) {
-data$sum_repeat[[ii]] = data$sum_repeat[[ii]][-6]
+  data <- stream_in(file(xx)) 
+  for (ii in 1:dim(data)[1]) {
+    #Need to filter out stove image variables as they get the format messed up as per R's json functionality.
+    data$sum_repeat[[ii]] <- data$sum_repeat[[ii]][!str_detect(data$sum_repeat[[ii]],pattern="B18")]
+    data$sum_repeat[[ii]] <- data$sum_repeat[[ii]][!str_detect(data$sum_repeat[[ii]],pattern="B12")]
+    data$sum_repeat[[ii]] <- data$sum_repeat[[ii]][!str_detect(data$sum_repeat[[ii]],pattern="B6")]
+    # data$sum_repeat[[ii]] = data$sum_repeat[[ii]][-6] #Another way to remove the 6th element of a list...
+  }
+  
+  data <- tidyr::unnest(data,sum_repeat) %>%
+    dplyr::mutate(comments = paste(B10_notes,B21_notes)) %>%
+    dplyr::mutate(location = comments) %>%
+    dplyr::rename(visitdate = A1_date,visittime = A2_visittime,HHID = A3_HHID,enumerator = A4_survinitials,logger_id = B3_sumid,stove_type = B4_stove,
+                  filename = B15_filename,maxtemp = B16_maxtemp,mintemp = B17_mintemp) %>%
+    dplyr::mutate(datetime_placed = as.POSIXct(paste(visitdate, B7_installationtime),
+                                               format = "%Y-%m-%d %H:%M:%S",
+                                               origin = "1970-01-01")) %>%
+    dplyr::mutate(datetime_removal = as.POSIXct(paste(visitdate, B13_removaltime),
+                                                format = "%Y-%m-%d %H:%M:%S",
+                                                origin = "1970-01-01")) %>%
+    dplyr::select(-A_V1_note,-instanceID,-A5_cookname,-B10_notes,-B21_notes,-B4_stove_other,-B7_installationtime,-visitdate,-visittime,
+                  -D_visitendtime,-B13_removaltime) %>%
+    dplyr::mutate(deployment = substring(filename, 
+                                         sapply(filename, function(x) tail(unlist(gregexpr('DL',x,perl=TRUE)),1)[1]), 
+                                         sapply(filename, function(x) tail(unlist(gregexpr('DL',x,perl=TRUE)),1)[1])+2)) %>%
+    dplyr::mutate(HHID = gsub("_","",HHID)) %>%
+    dplyr::group_by(deployment,HHID) %>%
+    dplyr::mutate(number_loggers_placed_home = n()) %>%
+    dplyr::ungroup()
+  
 }
 
-data <- tidyr::unnest(data,sum_repeat) %>%
-  dplyr::mutate(comments = paste(B10_notes,B21_notes)) %>%
-  dplyr::rename(visitdate = A1_date,visittime = A2_visittime,HHID = A3_HHID,enumerator = A4_survinitials,logger_id = B3_sumid,stove_type = B4_stove,
-                filename = B15_filename,maxtemp = B16_maxtemp,mintemp = B17_mintemp) %>%
-  dplyr::mutate(visitstartdatetimeUTC = as.POSIXct(paste(visitdate, visittime),
-                                                   format = "%Y-%m-%d %H:%M:%S",
-                                                   origin = "1970-01-01")) %>%
-  dplyr::mutate(visitenddatetimeUTC = as.POSIXct(paste(visitdate, B7_installationtime),
-                                                   format = "%Y-%m-%d %H:%M:%S",
-                                                   origin = "1970-01-01")) %>%
-  dplyr::select(-A_V1_note,-instanceID,-A5_cookname,-B10_notes,-B21_notes,-B4_stove_other,-B7_installationtime,-visitdate,-visittime,
-                -D_visitendtime,-B12_stoveimage,-B13_removaltime) %>%
-  dplyr::mutate(deployment = substring(filename, 
-                                                sapply(filename, function(x) tail(unlist(gregexpr('_',x,perl=TRUE)),1)[1])+1, 
-                                                sapply(filename, function(x) tail(unlist(gregexpr('_',x,perl=TRUE)),1)[2])-1)) 
-
-stove_codes <- data.frame(stove = as.factor(c(1,2,3,4,5,6,7)),
-                          stove_descriptions = as.factor(c("Mimi-moto","Traditional metal wire","Simple wood","Local improved charocal","High efficiency wood","LPG","Other")))
-
-stove_group_codes <- data.frame(group = as.factor(c(1,2)),  #Use these if there are different study arms.
-                                stove_groups = as.factor(c("Baseline","Mimi-moto"))) #group variable in filter_sumsarized.R
-
-install_codes <- data.frame(group = as.factor(c(1,2)),  #Use these if there are different study arms.
-                                stove_groups = as.factor(c("Installing","Downloading"))) #group variable in filter_sumsarized.R
-
-
-}
 

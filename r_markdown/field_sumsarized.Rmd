@@ -26,7 +26,7 @@ output:
   reimport_data <- FALSE
   
   #2.  Make sure the parameter file is for the project you are using.  The parameter file must be located in the r_files folder.
-  source('../r_files/parameter_file_Nigeria_AfDB.R') 
+  source('../r_files/parameter_file_Nigeria_AfDB.R') #OG Codebase
 ```
 
 ```{r load_libraries_functions}
@@ -34,6 +34,7 @@ output:
   source("../r_scripts/functions.R")
   source("../r_scripts/load_data.r")
   source("../r_scripts/plots.R")
+  source("../r_scripts/filter_metadata.R")
   source("../r_scripts/filter_sum_data.R")
   if (.Platform$OS.type!="unix") {
         Sys.setenv("R_ZIPCMD" = "C:/Rtools/bin/zip.exe") 
@@ -45,11 +46,12 @@ output:
   knitr::opts_chunk$set(fig.path='../figures/', warning=FALSE, message=FALSE, cache=FALSE)
 ```
 
+
 # Import temperature data and metadata files
 ```{r load_data, warning=FALSE}
   #Loads all SUMSARIZED data.  Reloads the RDS file if reimport_data is set to FALSE.  This is faster if all the data has been previously imported by setting it to TRUE.
   
-  if (!file.exists("../r_files/sumsarized.RDS") | reimport_data == TRUE) {
+  if (!file.exists("../r_files/sumsarized.RDS") | reimport_data == TRUE | file.info("../r_files/sumsarized.RDS")$size<30) {
   #Rprof("rprofout.out") #Analyze code, it is quite slow... but only need to do it occasionally.
   saveRDS(load_sumsarized(stove_codes$stove), file ="../r_files/sumsarized.RDS")
   #Rprof(NULL)
@@ -59,10 +61,19 @@ output:
   #Save the sumsarized data to a single dataframe called sumsarized.RDS, located in r_files.
   sumsarized <- readRDS("../r_files/sumsarized.RDS") 
 
-  #Load metadata from the tracking sheet
-  saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
-  metadata <- readRDS("../r_files/metadata_download.RDS")
-  metadata <- dplyr::filter(metadata,!(is.na(filename)))
+  #Load metadata from the Excel tracking sheet if available.
+  if (exists("path_tracking_sheet_json") && !is.na(path_tracking_sheet_json)) {
+      saveRDS(load_meta_json(path_tracking_sheet_json), file = "~/Dropbox/Kigeme SUMs Analysis/SUMS Analysis R Code/r_files/jsonmetadata.RDS")
+      metadata <- readRDS("../r_files/jsonmetadata.RDS")
+  } else if (!is.na(path_tracking_sheet)){
+      saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
+      # saveRDS(load_meta_download_v2(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
+      metadata <- readRDS("../r_files/metadata_download.RDS")
+  }
+
+  #Filter the metadata using this function, including fixing household names and addresses
+  metadata <- filter_metadata_fun(metadata)
+
   #Start date for eligible data
   print(start_date_range)
   #End date for eligible data
@@ -81,14 +92,16 @@ output:
 ```{r parse_add_metadata}
 #Import thermocouple data time series output from Sumsarizer.
 #datetime_placed is currently based on the metadata.  Flags data as good/bad based on the bad_files and HHID_remove variables.  Those are reapplied directly to the cooking events later, and filtered out if bad.
-  if ( reimport_data == TRUE) {
-    
+  if (( reimport_data == TRUE) |  (!file.exists("../r_files/sumsarized_filtered.RDS"))) {
       sumsarized_filtered <- filter_sumsarized(sumsarized,metadata,bad_files,HHID_remove,
-                                               project_name,stove_codes,logging_duration_minimum) #HHID is grabbed from the filename.
+                                               project_name,stove_codes) #HHID is grabbed from the filename.
       saveRDS(sumsarized_filtered, file ="../r_files/sumsarized_filtered.RDS")
   } else {
       sumsarized_filtered <- readRDS("../r_files/sumsarized_filtered.RDS") #Loads the already-imported filtered sumsarized data if reimport_data is set to FALSE.
   }
+#Define grouping based on the stove_group_codes variable.  Didn't put it in filter function because this is faster.  Need to change grouping in the parameter file
+sumsarized_filtered <-dplyr::left_join(sumsarized_filtered,stove_group_codes,by = "group") %>%
+    dplyr::mutate(group = as.factor(stove_groups))
 
 #These are the stove types found in the file names
 print(unique(sumsarized_filtered$stove))
@@ -120,28 +133,28 @@ kable(stove_codes)
    #Grab data from file i, and keep only the entries that are marked as cooking
    temp <- dplyr::filter(sumsarized_filtered,file_indices == i) %>%
       dplyr::filter(state == TRUE) %>% dplyr::filter(!duplicated(datetime)) 
-  tempALL <- dplyr::filter(sumsarized_filtered,file_indices == i) 
+   tempALL <- dplyr::filter(sumsarized_filtered,file_indices == i) 
    
    qc_temp <- "ok" #Default to ok data quality, gets demoted based on later checks.
 
      #Organize/check/fix datetimes of sum placements and removals. If there is a start and end time available for the monitoring period, use it to keep the data from the file.  Disregard this if the datetime_removal is NA, since it means we don't have a fixed known end date.  In this case we assume the end of the file is the end of the monitoring preiod and keep all the data from the given file.  Provide the start and end date in the event-building loop below.
-      min_time_file = min(tempALL$datetime)
-      max_time_file = max(tempALL$datetime)
-   if (max_time_file>end_date_range | min_time_file<start_date_range) {   #datetime_placed is changed to the local file value if it is below the start_date_range, and datetime_placed is too, according to the end_date_range
-         datetime_placed_temp = min_time_file
-         datetime_removal_temp = max_time_file 
+      min_time_file = as.POSIXct(min(tempALL$datetime))
+      max_time_file = as.POSIXct(max(tempALL$datetime))
+   if ((max_time_file>end_date_range | min_time_file<start_date_range) | metadata_date_ignore == 1) {   #datetime_placed is changed to the local file value if it is below the start_date_range, and datetime_placed is too, according to the end_date_range
+         datetime_placed_temp = as.POSIXct(min_time_file)
+         datetime_removal_temp = as.POSIXct(max_time_file) 
          qc_temp <- "out_of_placement_range" #These get filtered out, assuming it represents poorly time formatted data.
    } else if (is.na(as.POSIXct(temp$datetime_removal[1])) | is.na(as.POSIXct(temp$datetime_placed[1]))){  #If date is NA, use the file's dates.  They have already been midnight-trimmed in the load_data.r function.
-         datetime_placed_temp = min_time_file
-         datetime_removal_temp = max_time_file
+         datetime_placed_temp = as.POSIXct(min_time_file)
+         datetime_removal_temp = as.POSIXct(max_time_file)
          qc_temp <- "NA_metadata"
    } else if (min_time_file> as.POSIXct(temp$datetime_placed[1])) {  #If placement time is before time of first data point, switch to first data point.
-         datetime_placed_temp = min_time_file
-         datetime_removal_temp = max_time_file
+         datetime_placed_temp = as.POSIXct(min_time_file)
+         datetime_removal_temp = as.POSIXct(max_time_file)
          qc_temp <- "placement_before_data"
    } else if (as.POSIXct(min(temp$datetime_placed))> as.POSIXct(max(temp$datetime_removal))) {  #If placement time is greater than the datetime placed, switch them, it's a mistake.
-         datetime_placed_temp = min_time_file
-         datetime_removal_temp = max_time_file 
+         datetime_placed_temp = as.POSIXct(min_time_file)
+         datetime_removal_temp = as.POSIXct(max_time_file)
          qc_temp <- "placement_greaterthan_removal"
    } else { #If not NA, a value must have been found in the meta data, use it.
          datetime_placed_temp = as.POSIXct(min(temp$datetime_placed))
@@ -215,7 +228,6 @@ kable(stove_codes)
  }
 
 
-#Clean up cooking events. Implements quality checking in the qc variable so we know which events to remove later.  Also adds better variable names for stoves, and units.
  cooking_events <- dplyr::left_join(cooking_events,
                                               dplyr::select(stove_codes,stove,stove_descriptions),by = "stove") %>%
                           dplyr::mutate(units = "degrees Celsius") %>% #Define units as degrees C
@@ -226,7 +238,7 @@ kable(stove_codes)
                                                      "excluded_household_list",qc)) %>% #Flag data from HHID's that should be removed.
                           dplyr::mutate(qc = if_else(start_time>end_date_range | start_time<start_date_range,
                                                      "outside study date range",qc)) %>%
-                          dplyr::mutate(qc = if_else(grepl("amb",fullsumsarizer_filename,ignore.case=TRUE),"ambient",qc))  #Flag data from HHID's that should be removed.
+                          dplyr::mutate(qc = if_else(grepl("amb",fullsumsarizer_filename,ignore.case=TRUE),"ambient",qc))
                
 ```
 
@@ -260,8 +272,10 @@ ok_cooking_events_unfiltered <-  dplyr::mutate(cooking_events,qc,if_else(is.na(s
         dplyr::distinct(start_time,duration_minutes,HHID,stove_descriptions, .keep_all = TRUE) %>% 
         #Handle cases that have duplicated events due to overlapping files. Keep only distinct ones
         dplyr::mutate(datetime_placed = floor_date(datetime_placed,"minute")) %>%
-        dplyr::mutate(qc=if_else(logging_duration_days < logging_duration_minimum,"short_file_duration",qc)) %>%#Each file must be longer than this many days
+        dplyr::mutate(qc=if_else(logging_duration_days < logging_duration_minimum,"short_file_duration",qc)) %>% #Each file must be longer than this many days
         dplyr::arrange(HHID) %>%
+        dplyr::mutate(qc=if_else(duration_minutes<cooking_duration_minimum,"2ShortEvent",qc)) %>%
+        dplyr::mutate(qc=if_else(duration_minutes>cooking_duration_maximum,"2LongEvent",qc)) %>%
         dplyr::mutate(qc=if_else(is.na(HHID),"NA_HHID",qc)) %>%
         dplyr::mutate(qc=if_else(is.na(datetime_placed),"NA_datetime_placed",qc)) 
   
@@ -360,7 +374,7 @@ ok_datasummary <- summarise_all(ok_cooking_events,funs(n_distinct(.)))
 
 #Summarize use for each household
 stats_grouped_by_hhid_only <- dplyr::group_by(ok_cooking_events_padded,HHID) %>%
-    # calculate events per day for each household and stove.  Can then take summary stats of those.
+    # calculate events per day for each household  Can then take summary stats of those.
     dplyr::summarise(events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
                      minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
                      minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
@@ -486,7 +500,7 @@ filtered_files <- unique(dplyr::filter(sumsarized_filtered,grepl("ok",qc)) %>% d
 
 # Boxplot usage results
 
-```{r boxplots_usage, fig.width=7, fig.height=7}
+```{r boxplots_usage, fig.width=7, fig.height=4}
 
 give.n <- function(x){
    return(c(y = 0, label = length(x)))
@@ -520,13 +534,13 @@ g1 <- ggplot(grouped_data_means,aes(x=stove_descriptions, y = avg_events_per_day
   geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
   #facet_grid(stove_use_category~group,scales = "free", space = "free") + 
   stat_summary(fun.data = give.n, geom = "text") + 
-  facet_grid(~group,scales = "free", space = "free") + 
+  facet_grid( ~ group,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
   labs(y="Average uses per day",x="") + 
   ggtitle("Average uses per day for each household-stove combination") + 
   theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
   theme(legend.title = element_blank())
 g1
-#ggsave(filename="../figures/AverageUsesPerDay_byStoveGrouppadded.png", plot=g1,width = 6, height = 4)
 
 #Plot uses per day, by group, using the padded data set. (one data point per day-household-stove combo)
 g111<- dplyr::group_by(ok_cooking_events_padded, stove_descriptions, day_month_year, HHID, group) %>%
@@ -537,8 +551,8 @@ g111<- dplyr::group_by(ok_cooking_events_padded, stove_descriptions, day_month_y
   #geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
   #facet_grid(stove_use_category~group,scales = "free", space = "free") + 
   #stat_summary(fun.data = give.n, geom = "text") + 
-  facet_grid(group~stove_descriptions,scales = "free", space = "free") + 
-  labs(y="days",x="Number of uses by day") + 
+  facet_grid( group ~ stove_descriptions,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
+  labs(y="Days",x="Uses per day") + 
   theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
   theme(legend.title = element_blank())
 g111
@@ -556,6 +570,7 @@ g2 <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
   geom_jitter(height = 0,width = 0.2,alpha = 0.25) + 
   labs(y="Average uses/day",x="") + 
   stat_summary(fun.data = give.n, geom = "text") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
   theme(axis.text.x = element_text(angle = 60, hjust = 1)) 
 g2
 #ggsave(filename="../figures/AverageUsesPerDay_All.png", plot=g2,width = 6, height = 4)
@@ -569,12 +584,12 @@ g3<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>
   stat_summary(fun.y=mean, colour="blue", geom="point", 
                shape=18, size=4.5,alpha = 0.5)+
   stat_summary(fun.data = give.mean_minutes, geom = "text",colour="blue") + 
-  facet_grid(~group,scales = "free", space = "free") + 
-  labs(y="Average minutes used per day",x="") + 
+  facet_grid( ~group,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
+  labs(y="Minutes used per day",x="") + 
   stat_summary(fun.data = give.n, geom = "text") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 g3
-#ggsave(filename="../figures/AverageTimeUsedPerDay_All.png", plot=g3,width = 6, height = 4)
 
 #Plot average minutes used per day for each stove-household combination
 g33<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
@@ -587,15 +602,16 @@ g33<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
   stat_summary(fun.data = give.mean_minutes, geom = "text",colour="blue") + 
   labs(y="Average minutes used per day",x="") + 
   stat_summary(fun.data = give.n, geom = "text") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 g33
-#ggsave(filename="../figures/AverageTimeUsedPerDay_byStove.png", plot=g33,width = 6, height = 4)
 
 
 #Average event duration
 g4<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
   dplyr::summarise(minutes_per_day_stove_hhid=sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE)) %>%  
   ggplot(aes(x=stove_descriptions, y = minutes_per_day_stove_hhid)) + 
+  facet_grid( ~group ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
   stat_summary(fun.data = f, geom="boxplot") + 
   stat_summary(fun.y=mean, colour="blue", geom="point", 
                shape=18, size=4.5,alpha = 0.5)+
@@ -603,21 +619,20 @@ g4<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>
   geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
   stat_summary(fun.data = give.n, geom = "text") + 
   labs(y="Average event duration by household (minutes)",x="") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 g4
-#ggsave(filename="../figures/AverageTimeUsedPerEvent_byHousehold.png", plot=g4,width = 6, height = 4)
 
 
 ```
 
 # Time trend plots
-```{r plot_time_trends, fig.width=8, fig.height=7}
-
+```{r plot_time_trends, fig.width=7, fig.height=4}
 
 #Plot event duration per day by day of week.  Do not use the padded data set here, since there are non-events included in it, and they have an associated time.
 g5 <- ggplot(ok_cooking_events, aes(x=day_of_week, y = duration_minutes)) + 
     geom_violin(fun.data = f) +    geom_jitter(height = 0,width = 0.2,alpha = 0.1) +
-    facet_wrap(stove_descriptions~group,scales = "free") + 
+    facet_wrap( group ~ stove_descriptions,scales = "free_x", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
     labs(y="Cooking event duration (minutes)",x="") + 
     theme(axis.text.x = element_text(angle = 60, hjust = 1))
 g5
@@ -628,11 +643,25 @@ monthlyboxplots <-    ggplot(stats_grouped_by_hhid_stove_month,aes(x=month_year,
     stat_summary(fun.data = f, geom="boxplot",position = position_dodge(width=0.75)) +
     geom_jitter(alpha = 0.25,position = position_dodge(width=0.75)) +
     labs(y="Events/day",x="") + 
-    facet_wrap(stove_descriptions~group,scales = "free") + 
-    ggtitle("Monthly trends") + 
+    facet_wrap( group ~ stove_descriptions,scales = "free_x") +
+    ggtitle("Events by month") + 
     theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.title = element_blank())
 monthlyboxplots
 #ggsave(monthlyboxplots,filename=paste("../figures/monthlyboxplots",y,".png",sep=""),width = 7, height = 2)
+
+
+#Time of day trend.  Based on start time, change it to middle of event?  Remove groups with less than 5 hh's?
+#Use unpadded set to get time of day of event starts.
+g8 <- ggplot(ok_cooking_events, aes(start_hour, fill = stove_descriptions, 
+                      colour = stove_descriptions)) + geom_density(alpha = 0.1) +
+      labs(y="Time of day use density",x="Hour of day") +
+      ggtitle("stove use density") + 
+      facet_grid( ~group ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      scale_x_continuous(breaks=seq(0,24,6)) + 
+    theme(legend.title = element_blank())
+g8
+#ggsave(g8,filename=paste("../figures/Density",y,".png",sep=""))
 
 
 #Plot %stove-days, where stove-day is defined as whether the stove is used on the given day or not.
@@ -642,7 +671,7 @@ g7 <-dplyr::group_by(ok_cooking_events_padded,day_month_year,stove_descriptions,
       dplyr::mutate(days_used_day_stove_grouped = 100*sum(use_flag, na.rm=TRUE)/(sum(use_flag, na.rm=TRUE)+sum(!use_flag, na.rm=TRUE))) %>%
       ggplot(aes(x=day_month_year, y = days_used_day_stove_grouped,color = stove_descriptions)) + 
     geom_point(alpha = 0.1) + geom_smooth() + #method='lm',formula=y~x) +
-    facet_grid(~group,scales = "free", space = "free") + 
+    facet_grid( ~group ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
     labs(y="% stove days",x="") + 
     theme(legend.title = element_blank()) + 
     theme(axis.text.x = element_text(angle = 60, hjust = 1))
@@ -650,70 +679,137 @@ g7
 #ggsave(g7,filename=paste("../figures/PercentStoveDaysByGroup.png",sep=""))
 
 
-#Time of day trend.  Based on start time, change it to middle of event?  Remove groups with less than 5 hh's?
-#Use unpadded set to get time of day of event starts.
-g8 <- ggplot(ok_cooking_events, aes(start_hour, fill = stove_descriptions, 
-                      colour = stove_descriptions)) + geom_density(alpha = 0.1) +
-      labs(y="Time of day use density",x="Hour of day") +
-      ggtitle("stove use density") + 
-      facet_grid(~group,scales = "free", space = "free") + 
-      theme(plot.title = element_text(hjust = 0.5)) +
-      scale_x_continuous(breaks=seq(0,24,6)) + 
-      ylim(0, 0.15)
-g8
-#ggsave(g8,filename=paste("../figures/Density",y,".png",sep=""))
-
-
-#Usage time series by minutes used each day, by group and stove type  
+#Event duration time series, by group and stove type  
  g12<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,day_month_year,group) %>%
   dplyr::summarise(mean_daily_use_tseries=mean(duration_minutes,na.rm=TRUE)) %>%
   ggplot(aes(day_month_year, y=mean_daily_use_tseries,color = stove_descriptions)) + #,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
   geom_smooth()+
   geom_point(alpha = 0.25)+
-  facet_grid(~group~stove_descriptions,scales = "free", space = "free") + 
-  ggtitle("Daily average uses by group and stove") + 
-  labs(y="Minutes per day",x="") +
-  ylim(0,200)
+  facet_grid( group~stove_descriptions ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
+  ggtitle("Average event duration") + 
+  labs(y="Minutes per event",x="") 
  g12
-#ggsave(filename="../figures/Overall_usage_fraction_byGroup.png", plot=g12,width = 6, height = 4)
+
+ #Usage time series by minutes used each day, by group and stove type  
+ g122<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,day_month_year,group,HHID) %>%
+  dplyr::summarise(avg_minutes_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>% #For each HHID and stove, get the avg minutes per day cooked.
+  dplyr::group_by(group,stove_descriptions,day_month_year) %>% #Now regroup
+  dplyr::summarise(avg=mean(avg_minutes_per_day,na.rm=TRUE,keep_all=TRUE)) %>% #Get the average of those averages, by day.
+  ggplot(aes(day_month_year, y=avg,color = stove_descriptions)) + #,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
+  geom_smooth()+
+  geom_point(alpha = 0.25)+
+  facet_grid( group~stove_descriptions ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
+  ggtitle("Average daily use") + 
+  labs(y="Minutes per day",x="")
+ g122
  
+#Plot %stove-days, where stove-day is defined as whether the stove is used on the given day or not.
+  #Calculate percent stove-days.
+g123 <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,day_month_year,group,HHID) %>%
+  dplyr::summarise(avg_minutes_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>% #For each HHID and stove, get the avg minutes per day cooked.
+  dplyr::group_by(group,stove_descriptions,day_month_year) %>% #Now regroup
+  dplyr::summarise(avg=mean(avg_minutes_per_day,na.rm=TRUE,keep_all=TRUE)) %>% #Get the average of those averages, by day.
+  ggplot(aes(day_month_year, y=avg,color = stove_descriptions)) + #,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
+  geom_smooth()+
+  geom_point(alpha = 0.25)+
+  facet_grid( ~group ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
+  ggtitle("Average daily use") + 
+  labs(y="Minutes per day",x="") 
+g123
  
-#Usage time series by minutes used each day, by group and stove type  
- g13<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,day_month_year) %>%
-  dplyr::summarise(mean_daily_use_tseries=mean(duration_minutes,na.rm=TRUE)) %>%
+ #Usage time series by minutes used each day, by group and stove type  
+ g13<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,day_month_year,HHID) %>%
+  dplyr::summarise(avg_minutes_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>% #For each HHID and stove, get the avg minutes per day cooked.
+  dplyr::group_by(stove_descriptions,day_month_year) %>% #Now regroup
+  dplyr::summarise(mean_daily_use_tseries=mean(avg_minutes_per_day,na.rm=TRUE,keep_all=TRUE)) %>% #Get the average of those averages, by day.
   ggplot(aes(day_month_year, y=mean_daily_use_tseries,color = stove_descriptions)) + #,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
   geom_smooth()+
   geom_point(alpha = 0.25)+
-  facet_grid(~stove_descriptions,scales = "free", space = "free") + 
-  ggtitle("Daily average uses by stove") + 
-  labs(y="Minutes per day",x="") +
-  ylim(0,200)
+  facet_grid( ~stove_descriptions ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
+  ggtitle("Daily average use by stove") + 
+  labs(y="Minutes per day",x="") 
  g13
-#ggsave(filename="../figures/Overall_usage_fraction.png", plot=g12,width = 6, height = 4)
 
 ```
 
 # Usage fraction result plots
 
-```{r plot_usage_fractions, fig.width=7, fig.height=7}
+```{r plot_usage_fractions, fig.width=7, fig.height=4}
 
-#Daily usage fraction by group. Includes all hh.  We could filter out houses with fewer than x sums to reduce any potential bias from a certain sum type burning up or something.
+#Usage fraction time series by duration. Includes. all hh.  todo: We could filter out houses with fewer than x sums to reduce any potential bias from a certain sum type burning up or something.
+#This plot looks at 
 g10<- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,duration_minutes) %>%
-  thicken('day', col = 'day') %>% 
+  thicken('day', col = 'day') %>% #Get an event for every day.
   group_by(stove_descriptions, day) %>%
-  summarise(avg=mean(duration_minutes,na.rm=TRUE)) %>%
+  summarise(avg=mean(duration_minutes,na.rm=TRUE)) %>% #Mean duration by stove by day.
   ggplot(aes(day, avg)) +
   geom_bar(aes(fill = stove_descriptions), 
            col = "black",
            stat = 'identity', 
            position = "fill",size=0) +
-  ggtitle("Usage fraction") + 
+  ggtitle("Usage fraction by durations") + 
   labs(y="Usage fraction",x="")  +
+  scale_fill_brewer(palette="Blues")+
   theme(legend.title = element_blank())
 g10
 
+#Usage fraction time series by daily cooking time.
+gg10<- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,duration_minutes,group,HHID,day_month_year) %>%
+  dplyr::group_by(stove_descriptions,group,day_month_year) %>% 
+  dplyr::summarise(avg_minutes_per_stove_per_hh=sum(duration_minutes,na.rm=TRUE)/length(unique(HHID))) %>% ##Minutes per household with stove n on day i.
+  ggplot(aes(day_month_year, avg_minutes_per_stove_per_hh)) +
+  geom_bar(aes(fill = stove_descriptions), 
+           col = "black",
+           stat = 'identity', 
+           position = "fill",size=0) +
+  ggtitle("Usage fraction by daily cooking time") + 
+  labs(y="Usage fraction",x="")  +
+  scale_fill_brewer(palette="Blues")+
+  facet_grid(group~.,scales = "free", space = "free") +
+  theme(legend.title = element_blank())
+gg10
 
-#Overall usage fraction by group.  
+#Usage fraction by daily cooking times.
+ g111<- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,HHID,duration_minutes,group) %>%
+  dplyr::group_by(stove_descriptions,HHID,group) %>% #Group, then can do calculations on these groups.
+  dplyr::summarise(avg_minutes_per_day_per_hhid=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>% #Minutes per day per household with stove n.
+  dplyr::group_by(group,stove_descriptions) %>% 
+  dplyr::summarise(avg=mean(avg_minutes_per_day_per_hhid,na.rm=TRUE,keep_all=TRUE)) %>% #Average of those averages.
+  dplyr::mutate(usefraction = avg/sum(avg)) %>% #Fraction of the average use of stove A over the total average time cooked at the household with all stoves A:N
+  dplyr::filter(usefraction>0.001) %>%
+   dplyr::ungroup() %>%
+  ggplot(aes(x=1, usefraction,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
+  geom_col(aes(fill=stove_descriptions)) +
+  geom_text(aes(group=stove_descriptions),position = position_stack(vjust = 0.5)) +
+  ggtitle("Overall usage fraction by daily cooking time") + 
+  facet_grid(~group,scales = "free", space = "free") + 
+  labs(y="Usage fraction",x="")  +
+  scale_fill_brewer(palette="Blues")+
+  theme(legend.title = element_blank())
+g111
+#ggsave(filename="../figures/Overall_usage_fraction_bygroup.png", plot=g111,width = 6, height = 4)
+
+
+#Overall usage fractions by daily cooking times. 
+ g111_overall<- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,HHID,duration_minutes,group) %>%
+  dplyr::group_by(stove_descriptions,HHID) %>% #Group, then can do calculations on these groups.
+  dplyr::summarise(avg_minutes_per_day_per_hhid=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>% #Minutes per day per household with stove n.
+  dplyr::group_by(stove_descriptions) %>% 
+  dplyr::summarise(avg=mean(avg_minutes_per_day_per_hhid,na.rm=TRUE,keep_all=TRUE)) %>% #Average of those averages.
+  dplyr::mutate(usefraction = avg/sum(avg)) %>% #Fraction of the average use of stove A over the total average time cooked at the household with all stoves A:N.  This means a single household with high usage of some stove will result in a high usage fraction overall.  
+  dplyr::filter(usefraction>0.001) %>%
+   dplyr::ungroup() %>%
+  ggplot(aes(x=1, usefraction,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
+  geom_col(aes(fill=stove_descriptions)) +
+  geom_text(aes(group=stove_descriptions),position = position_stack(vjust = 0.5)) +
+  ggtitle("Overall usage fraction by daily cooking time") + 
+  labs(y="Usage fraction",x="")  +
+  scale_fill_brewer(palette="Blues")+
+  theme(legend.title = element_blank())
+g111_overall
+
+
+#Overall usage fraction by event durations.  
  g11<- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,duration_minutes) %>%
   group_by(stove_descriptions) %>%
   summarise(avg=mean(duration_minutes,na.rm=TRUE)) %>%
@@ -721,49 +817,48 @@ g10
   ggplot(aes(x=1, usefraction,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
   geom_col(aes(fill=stove_descriptions))+
   geom_text(aes(group=stove_descriptions),position = position_stack(vjust = 0.5)) +
-  ggtitle("Overall usage fraction") + 
+  ggtitle("Usage fraction by durations") + 
   labs(y="Usage fraction",x="")  +
+  scale_fill_brewer(palette="Blues")+
   theme(legend.title = element_blank())
 g11
 #ggsave(filename="../figures/Overall_usage_fraction.png", plot=g12,width = 6, height = 4)
 
 
-#Overall usage fraction by group.  
- g111<- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,duration_minutes,group) %>%
-  group_by(stove_descriptions,group) %>%
-  summarise(avg=mean(duration_minutes,na.rm=TRUE,keep_all=TRUE)) %>%
-  group_by(group) %>%
+#Overall usage fraction by %stove days
+ g11b<- dplyr::select(ok_cooking_events_padded,stove_descriptions,day_month_year,use_flag) %>%
+  group_by(stove_descriptions) %>%
+  summarise(avg=mean(use_flag,na.rm=TRUE)) %>%
   dplyr::mutate(usefraction = avg/sum(avg)) %>%
-  dplyr::filter(usefraction>0.001) %>%
-  ggplot(aes(x=1, usefraction*.8,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
+  ggplot(aes(x=1, usefraction,label=sprintf("%0.2f", round(usefraction, digits = 2)))) +
   geom_col(aes(fill=stove_descriptions))+
   geom_text(aes(group=stove_descriptions),position = position_stack(vjust = 0.5)) +
-  ggtitle("Overall usage fraction") + 
-  facet_grid(~group,scales = "free", space = "free") + 
+  ggtitle("Usage fraction by % stove days") + 
   labs(y="Usage fraction",x="")  +
+  scale_fill_brewer(palette="Blues")+
   theme(legend.title = element_blank())
-g111
-#ggsave(filename="../figures/Overall_usage_fraction_bygroup.png", plot=g111,width = 6, height = 4)
-
+g11b
+#ggsave(filename="../figures/usage_fraction_by_events.png", plot=g1ab,width = 6, height = 4)
 
 ```
 
 # Plot deployment details 
 
-```{r plot_monitoring_diagnostics, fig.width=7, fig.height=7}
+```{r plot_monitoring_diagnostics, fig.width=7, fig.height=4}
 
- #Barplot by day of fraction of stoves monitored... not too interesting but neat coding to look at.
-g9<- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,duration_minutes) %>%
-  thicken('day', col = 'day') %>% #Map data to a higher level variable.  Compresses two data points from one day into one day
-  count(stove_descriptions, day) %>%
-  ggplot(aes(day, n)) +
-  ggtitle("Daily stove monitored by fraction") + 
-  labs(y="Monitored fraction",x="")  +
-  geom_bar(aes(fill = stove_descriptions), 
-           col = "black",
-           stat = 'identity', 
-           position = "fill", size=0)
-g9
+#  #Barplot by day of fraction of stoves monitored... not too interesting but neat coding to look at.
+# g9<- dplyr::select(ok_cooking_events_padded,stove_descriptions,start_time,duration_minutes) %>%
+#   thicken('day', col = 'day') %>% #Map data to a higher level variable.  Compresses two data points from one day into one day
+#   count(stove_descriptions, day) %>%
+#   ggplot(aes(day, n)) +
+#   ggtitle("Daily stove monitored by fraction") + 
+#   labs(y="Monitored fraction",x="")  +
+#   scale_fill_brewer(palette="Blues")+
+#   geom_bar(aes(fill = stove_descriptions), 
+#            col = "black",
+#            stat = 'identity', 
+#            position = "fill", size=0)
+# g9
 
 #Plot days sampled per file
 g6<-  dplyr::distinct(ok_cooking_events_padded,fullsumsarizer_filename,logging_duration_days,stove_descriptions) %>% 
@@ -781,16 +876,16 @@ g6
 
 # Plot stacking 
 
-```{r plot_stacking, fig.width=6, fig.height=4}
+```{r plot_stacking, fig.width=7, fig.height=4}
 stacking_stovedays <- stacking_stovedays_fun(ok_cooking_events_padded) #Use the stacking_stovedays_fun function from functions.r
 give.mean5 <- function(x){
    return(c(y =mean(x)+5, label = round(mean(x),digits=1)))
 }
-gg_stack <- ggplot(stacking_stovedays,aes(x=stove_descriptions, y = percent_stovedays,color = stove_descriptions)) +
+gg_stack <- ggplot(stacking_stovedays%>%dplyr::filter(!is.na(group)),aes(x=stove_descriptions, y = percent_stovedays,color = stove_descriptions)) +
     stat_summary(fun.data = f, geom="boxplot") +
     geom_jitter(alpha = 0.25,position = position_dodge(width=0.75)) +
     labs(y="Percent stove-days",x="") + 
-    facet_wrap(~group,scales = "free") + 
+    facet_wrap(~group,scales = "free_x") + 
     stat_summary(fun.y=mean, colour="blue", geom="point", 
                shape=18, size=4,alpha = 0.5)+
     stat_summary(fun.data = give.mean5, geom = "text",colour="blue",alpha = 0.5,size = 3) + 
@@ -798,6 +893,29 @@ gg_stack <- ggplot(stacking_stovedays,aes(x=stove_descriptions, y = percent_stov
   
     theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.title = element_blank())
 gg_stack
+# ggsave(filename="../figures/stacking_plot.png", plot=gg_stack,width = 8, height = 4)
+
+
+```
+
+# Analyze simultaneous cooking events 
+
+```{r plot_simultaneous, fig.width=7, fig.height=4}
+# Simultaneous event count for combinations of stove by household.  Plot %of simultaneous for each stove combo, by group.
+
+simul_by_stove_combos <- simul_events_fun(ok_cooking_events_padded) #Use the stacking_stovedays_fun function from functions.r
+
+gg_simul <- ggplot(simul_by_stove_combos %>% dplyr::filter(!is.na(group)),aes(x=stove_descriptions, y = percent_days_simul, color = stove_descriptions)) +
+    stat_summary(fun.data = f, geom="boxplot") +
+    geom_jitter(alpha = 0.25,position = position_dodge(width=0.75)) +
+    labs(y="Percent of days with simultaneous use of stove",x="") + 
+    facet_wrap(~group,scales = "free_x") + 
+    stat_summary(fun.y=mean, colour="blue", geom="point", 
+               shape=18, size=4,alpha = 0.5)+
+    stat_summary(fun.data = give.mean5, geom = "text",colour="blue",alpha = 0.5,size = 3) + 
+    stat_summary(fun.data = give.n, geom = "text",colour = "black",alpha = 0.5,size = 3) + 
+    theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.title = element_blank())
+gg_simul
 # ggsave(filename="../figures/stacking_plot.png", plot=gg_stack,width = 8, height = 4)
 
 
