@@ -26,7 +26,7 @@ output:
   reimport_data <- FALSE
   
   #2.  Make sure the parameter file is for the project you are using.  The parameter file must be located in the r_files folder.
-  source('../r_files/parameter_file_Nigeria_AfDB.R') #OG Codebase
+  source('../r_files/parameter_file_ICDDRB.R') #OG Codebase
 ```
 
 ```{r load_libraries_functions}
@@ -34,7 +34,6 @@ output:
   source("../r_scripts/functions.R")
   source("../r_scripts/load_data.r")
   source("../r_scripts/plots.R")
-  source("../r_scripts/filter_metadata.R")
   source("../r_scripts/filter_sum_data.R")
   if (.Platform$OS.type!="unix") {
         Sys.setenv("R_ZIPCMD" = "C:/Rtools/bin/zip.exe") 
@@ -66,7 +65,7 @@ output:
       saveRDS(load_meta_json(path_tracking_sheet_json), file = "~/Dropbox/Kigeme SUMs Analysis/SUMS Analysis R Code/r_files/jsonmetadata.RDS")
       metadata <- readRDS("../r_files/jsonmetadata.RDS")
   } else if (!is.na(path_tracking_sheet)){
-      saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
+      saveRDS(load_meta_download_v2(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
       # saveRDS(load_meta_download_v2(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
       metadata <- readRDS("../r_files/metadata_download.RDS")
   }
