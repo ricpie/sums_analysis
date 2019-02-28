@@ -19,12 +19,12 @@ load_sumsarized <- function(substitution_list){
   sub_list <- paste0("_",as.character(substitution_list)) #Create list for replacement
   names(sub_list ) <- substitution_list
   sub_list <- as.list(sub_list, use.names=FALSE)
-  
+  # x<- "/Users/ricardopiedrahita/Dropbox/icddr,b Time Poverty Field Folder/SUMs Processing/SUMSARIZED/Pre_GAA1160_TMS_Dpl-01.csv"
  asdf <- lapply(list.files(paste0("../../SUMSARIZED", collapse=NULL),
                     pattern = ".csv",
                     full.names = TRUE,recursive = TRUE),
          function(x)
-         readr::read_csv(x, 
+            readr::read_csv(x, 
                            skip = 1,
                            col_names = c("sumsarizer_filename", "datetime", "stove_temp", "state","datapoint_id","dataset_id"),
                            col_types = 
@@ -37,7 +37,7 @@ load_sumsarized <- function(substitution_list){
                                dataset_id = col_character()
                              ),
                            na = c("", "NA")
-           ) %>%
+             ) %>%
           dplyr::mutate(filename = x) %>%
           dplyr::mutate(day_month_year = as.Date(datetime)) %>%
           dplyr::filter(day_month_year > min(day_month_year) & day_month_year < max(day_month_year)) #Remove data from the first and last days in the data file (the install and removal file)
@@ -45,10 +45,8 @@ load_sumsarized <- function(substitution_list){
   ) %>%
     dplyr::bind_rows() %>%
     # convert time to secs in day and fix file problems
-    dplyr::mutate(datetime = parse_date_time(gsub("/00", "/16", datetime),orders = c("y-m-d HMS", "m/d/y HMS"))) %>% #For AfDB Nigeria only.
+    dplyr::mutate(datetime = parse_date_time(datetime,orders = c("y-m-d HMS","d-m-y HM", "m/d/y HMS"))) %>% #For AfDB Nigeria only.
     #Do some file name formatting, looking for common errors, and unique ones.
-    dplyr::mutate(sumsarizer_filename = if_else(grepl("DL4",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL4.csv", sumsarizer_filename),sumsarizer_filename)) %>% #Special case for importing DL4 and DL5, for AfDB Nigeria only.
-    dplyr::mutate(sumsarizer_filename = if_else(grepl("DL5",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL5.csv", sumsarizer_filename),sumsarizer_filename))%>% #For AfDB Nigeria only.
     dplyr::mutate(fullsumsarizer_filename = sumsarizer_filename) %>%
     dplyr::mutate(sumsarizer_filename = substring(sumsarizer_filename,
                                        sapply(sumsarizer_filename, function(x) unlist(gregexpr('/',x,perl=TRUE))[1])+1,100)) %>% #For AfDB Nigeria only.
