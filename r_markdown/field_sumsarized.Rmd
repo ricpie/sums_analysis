@@ -26,7 +26,9 @@ output:
   reimport_data <- FALSE
   
   #2.  Make sure the parameter file is for the project you are using.  The parameter file must be located in the r_files folder.
-  source('../r_files/parameter_file_Nigeria_AfDB.R') #OG Codebase
+  parameter_filename <- "parameter_file_Nigeria_AfDB.R"  #Format example is :"parameter_file_HCCP_Ethiopia.R"
+  
+  source(paste0('../r_files/',parameter_filename') #OG Codebase
 ```
 
 ```{r load_libraries_functions}
@@ -66,8 +68,8 @@ output:
       saveRDS(load_meta_json(path_tracking_sheet_json), file = "~/Dropbox/Kigeme SUMs Analysis/SUMS Analysis R Code/r_files/jsonmetadata.RDS")
       metadata <- readRDS("../r_files/jsonmetadata.RDS")
   } else if (!is.na(path_tracking_sheet)){
-      saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
-      # saveRDS(load_meta_download_v2(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
+      # saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
+      saveRDS(load_meta_download_v2(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
       metadata <- readRDS("../r_files/metadata_download.RDS")
   }
 
@@ -293,7 +295,7 @@ list_of_bad_files <-  dplyr::mutate(not_ok_cooking_events,logging_duration_days 
 kable(list_of_bad_files) #Plot the list of bad files so we can look at them and re-analyze after correcting any mistakes.
 
 
-#Create padded time series of cooking events, so there is an event for every day, rather than gaps.  This facilitates 
+#Create padded time series of cooking events, so there is an event for every day, rather than gaps.  This facilitates stacking and stove use fraction analyses.
 ok_cooking_events_padded <- data.frame(stringsAsFactors = FALSE)
 #Replace NA with 0.
 #dplyr_if_else   <- function(x) { mutate_all(x, funs(ifelse(is.na(.), 0, .))) }
@@ -379,7 +381,7 @@ stats_grouped_by_hhid_only <- dplyr::group_by(ok_cooking_events_padded,HHID) %>%
                      minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
                      minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
                      days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
-                     events = n()) 
+                     events = sum(use_flag,na.rm=TRUE)) 
 kable(stats_grouped_by_hhid_only, digits=2)
 
 #Summarize use for each household and group
@@ -389,7 +391,7 @@ stats_grouped_by_hhid <- dplyr::group_by(ok_cooking_events_padded,HHID,group) %>
                      minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
                      minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
                      days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
-                     events = n()) 
+                     events = sum(use_flag,na.rm=TRUE)) 
 kable(stats_grouped_by_hhid, digits=2)
 
 #Summarize use for each unique stove.  HHID by stove-descriptions, so if a household has two LPG stoves, and they have the same description, it will look like one stove.  If it has a description like LPG-left and LPG-right it will be seen as a different stove.
@@ -399,15 +401,27 @@ print(paste(length(unique(stats_grouped_by_stove$stove_hhid)), "stoves monitored
 
 
 #Summarize use for each household and stove.
-stats_grouped_by_hhid_stove <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
+stats_grouped_by_hhid_stove <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group,logger_id) %>%
     # calculate events per day for each household and stove.  Can then take summary stats of those.
     dplyr::summarise(events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
                      minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
                      minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
                      days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
-                     events = n()) 
+                     events = sum(use_flag,na.rm=TRUE),
+                     start_date=median(datetime_placed),
+                     end_date=median(datetime_removal))
+  
 kable(stats_grouped_by_hhid_stove, digits=2)
 
+
+# #Run t-test on sum of cooking times within each group against the other groups.  Assumes paired and two-tailed testing.
+# t_test_by_groups_paired <- dplyr::group_by(stats_grouped_by_hhid_stove,group,HHID) %>%
+#           dplyr::mutate(daily_total_cooking_time_average= sum(minutes_per_day_stove_hhid)) %>% #Calculates the sum of the average times for each stove at each household, for each grouping variable
+#           dplyr::ungroup() %>%
+#           dplyr::distinct(HHID,group,daily_total_cooking_time_average) %>%
+#           dplyr::arrange(HHID,group) %>%
+#           t.test(daily_total_cooking_time_average ~ group, data = ., var.equal = TRUE,paired = TRUE)
+# print(t_test_by_groups_paired)
 
 #Calculate summary for the overall groups and stoves from the household-wise results above.  Should this be weighted in case one hh has way more data?
 stats_by_stove_group <- dplyr::group_by(stats_grouped_by_hhid_stove,stove_descriptions,group) %>%
@@ -469,19 +483,23 @@ openxlsx::write.xlsx(list_of_datasets, file = paste0("Summary Statistics ",forma
 
 # Plot all data time series
 * Plot usage rates (uses/day) by stove type, and region
-```{r plot_timeseries, fig.width=10, fig.height=70}
+
+```{r plot_timeseries, fig.width=8, fig.height=4}
 
 #Plot time series for each household, colored by filename.  For data completion purposes.
-gg <- field_timeseries_plot(sumsarized_filtered, "stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
-gg
+uniqueHHIDs <-sort(unique(unique(sumsarized_filtered$HHID)))
+for (i in 1:length(uniqueHHIDs)){
+  gg <- field_timeseries_plot(dplyr::filter(sumsarized_filtered,HHID == uniqueHHIDs[i]), "stove_temp", "datetime", "HHID", "stove_descriptions","qc")
+  print(gg)
+}
 ```
 
 # Plot data time series, removing flagged files and households
 * Plot usage rates (uses/day) by stove type, and region
 ```{r plot_nonflagged_timeseries, fig.width=10, fig.height=70}
 #Plot time series for each household, colored by filename.  Filtered out bad qc data
-gg <-field_timeseries_plot(dplyr::filter(sumsarized_filtered,grepl("ok",qc)),"stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
-gg
+# gg <-field_timeseries_plot(dplyr::filter(sumsarized_filtered,grepl("ok",qc)),"stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
+# gg
 ```
 
 # List of files without associated HHID and metadata from the tracking sheet.
@@ -661,22 +679,35 @@ g8 <- ggplot(ok_cooking_events, aes(start_hour, fill = stove_descriptions,
       scale_x_continuous(breaks=seq(0,24,6)) + 
     theme(legend.title = element_blank())
 g8
-#ggsave(g8,filename=paste("../figures/Density",y,".png",sep=""))
 
 
 #Plot %stove-days, where stove-day is defined as whether the stove is used on the given day or not.
   #Calculate percent stove-days.
-g7 <-dplyr::group_by(ok_cooking_events_padded,day_month_year,stove_descriptions,group) %>%
+g7data <-dplyr::group_by(ok_cooking_events_padded,day_month_year,stove_descriptions,group,HHID) %>%
+      dplyr::mutate(sum_use_flag = sum(use_flag, na.rm=TRUE)) %>% #Sum all the use flags from a household and stove type.
+      dplyr::mutate(use_flag_daily = replace(sum_use_flag,sum_use_flag >= 1, 1)) %>% #sum and replace values above zero to account for possibility of having multiple of the same stove type in one house, one of which is used, and the other is not, which could have lead to distinct values showing either cooking or not.
       dplyr::distinct(HHID,stove_descriptions,day_month_year, .keep_all = TRUE) %>% #No duplicate events from the same hh contributing to stove-days.
-      dplyr::mutate(days_used_day_stove_grouped = 100*sum(use_flag, na.rm=TRUE)/(sum(use_flag, na.rm=TRUE)+sum(!use_flag, na.rm=TRUE))) %>%
-      ggplot(aes(x=day_month_year, y = days_used_day_stove_grouped,color = stove_descriptions)) + 
-    geom_point(alpha = 0.1) + geom_smooth() + #method='lm',formula=y~x) +
+      dplyr::group_by(day_month_year,stove_descriptions,group) %>%  #Regroup without hhid to get ave over all hh's
+      dplyr::mutate(days_used_day_stove_grouped = 100*sum(use_flag_daily, na.rm=TRUE)/(sum(use_flag_daily, na.rm=TRUE)+sum(!use_flag_daily, na.rm=TRUE))) %>%
+      dplyr::mutate(households = n()) %>% #How many households are contributing data on this day to this stove
+      dplyr::filter(households > 3) %>% #Remove points with less than 3 households contributing data.
+      dplyr::group_by(group,stove_descriptions,HHID) %>% 
+      dplyr::mutate(mean_stovedays_by_hhid=100*sum(use_flag_daily, na.rm=TRUE)/(sum(use_flag_daily, na.rm=TRUE)+sum(!use_flag_daily, na.rm=TRUE))) %>%
+      dplyr::group_by(group,stove_descriptions) %>% 
+      dplyr::mutate(quartile=as.factor(round(rank(mean_stovedays_by_hhid)/length(mean_stovedays_by_hhid)*3)+1)) %>% # Calculate percent rank then group into a separate integer for grouping
+      dplyr::group_by(day_month_year,stove_descriptions,group,quartile) %>%  #Regroup without hhid to get ave over all hh's
+      dplyr::mutate(days_used_day_stove_grouped_quartile = 100*sum(use_flag_daily, na.rm=TRUE)/(sum(use_flag_daily, na.rm=TRUE)+sum(!use_flag_daily, na.rm=TRUE))) %>%
+      dplyr::ungroup()
+
+g7 <- dplyr::distinct(g7data,day_month_year,group,stove_descriptions,.keep_all = TRUE)  %>%
+    ggplot(aes(day_month_year, y = days_used_day_stove_grouped,color = stove_descriptions)) + 
+    geom_smooth() + 
+    geom_point(aes(size = households,alpha = 0)) +
     facet_grid( ~group ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
-    labs(y="% stove days",x="") + 
+    labs(y="% stoves used",x="") + 
     theme(legend.title = element_blank()) + 
     theme(axis.text.x = element_text(angle = 60, hjust = 1))
 g7
-#ggsave(g7,filename=paste("../figures/PercentStoveDaysByGroup.png",sep=""))
 
 
 #Event duration time series, by group and stove type  
@@ -687,6 +718,8 @@ g7
   geom_point(alpha = 0.25)+
   facet_grid( group~stove_descriptions ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
   ggtitle("Average event duration") + 
+  theme(legend.title = element_blank()) + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
   labs(y="Minutes per event",x="") 
  g12
 
@@ -700,6 +733,8 @@ g7
   geom_point(alpha = 0.25)+
   facet_grid( group~stove_descriptions ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
   ggtitle("Average daily use") + 
+  theme(legend.title = element_blank()) + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
   labs(y="Minutes per day",x="")
  g122
  
@@ -714,6 +749,8 @@ g123 <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,day_month_ye
   geom_point(alpha = 0.25)+
   facet_grid( ~group ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
   ggtitle("Average daily use") + 
+  theme(legend.title = element_blank()) + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
   labs(y="Minutes per day",x="") 
 g123
  
@@ -727,6 +764,8 @@ g123
   geom_point(alpha = 0.25)+
   facet_grid( ~stove_descriptions ,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
   ggtitle("Daily average use by stove") + 
+  theme(legend.title = element_blank()) + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
   labs(y="Minutes per day",x="") 
  g13
 
