@@ -4,14 +4,11 @@ path_tracking_sheet <- "SUMs_tracking form Smokeless Village"
 
 project_name <- "SmokelessVillage"
 #Text associating a given stove code with the full name to use in figures.
-stove_codes <- data.frame(stove = as.factor(c("BG","TS","LPG","AMB")),
-                          stove_descriptions = as.factor(c("Biogas",
-                                                           "Three stone fire",
-                                                           "LPG",
-                                                           "Ambient")))
+stove_codes <- data.frame(stove = as.factor(c("Solar","Tradicional","Mejorada","Ventiladora","GLP","Carbon")),
+                          stove_descriptions = as.factor(c("Solar","Tradicional","Mejorada","Ventiladora","GLP","Carbon")))
 
-stove_group_codes <- data.frame(group = as.factor(c("Pre","Post")),  #Use these if there are different study arms.
-                                stove_groups = as.factor(c("Pre LPG Intervention","Post LPG Intervention"))) #group variable in filter_sumsarized.R
+stove_group_codes <- data.frame(group = as.factor(c("Intervencion","No-Intervencion")),  #Use these if there are different study arms.
+                                stove_groups = as.factor(c("Intervencion","No-Intervencion"))) #group variable in filter_sumsarized.R
 
 cooking_group <- 40 # x minute window for grouping events together.
 cooking_duration_minimum <- 9  #Minutes
