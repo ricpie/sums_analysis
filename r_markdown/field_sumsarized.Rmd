@@ -26,10 +26,13 @@ output:
   reimport_data <- FALSE
   
   #2.  Make sure the parameter file is for the project you are using.  The parameter file must be located in the r_files folder.
-  parameter_filename <- "parameter_file_BCSV.R"  #Format example is :"parameter_file_HCCP_Ethiopia.R"
+
+  
+  parameter_filename <- "parameter_file_Nigeria_AfDB.R"  #Format example is :"parameter_file_HCCP_Ethiopia.R"
   
   source(paste0('../r_files/',parameter_filename)) #OG Codebase
   
+  source('../r_files/parameter_file_ICDDRB.R') #OG Codebase
 ```
 
 ```{r load_libraries_functions}
