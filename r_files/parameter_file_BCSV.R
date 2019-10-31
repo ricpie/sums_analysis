@@ -13,6 +13,9 @@ stove_codes <- data.frame(stove = as.factor(c("BG","TS","LPG","AMB")),
 stove_group_codes <- data.frame(group = as.factor(c("Pre","Post")),  #Use these if there are different study arms.
                                 stove_groups = as.factor(c("Pre LPG Intervention","Post LPG Intervention"))) #group variable in filter_sumsarized.R
 
+
+
+
 cooking_group <- 40 # x minute window for grouping events together.
 cooking_duration_minimum <- 9  #Minutes
 cooking_duration_maximum <- 1440 #Minutes

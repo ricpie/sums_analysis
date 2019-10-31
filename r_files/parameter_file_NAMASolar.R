@@ -2,13 +2,18 @@
 #Set path to tracking sheet relative to 'SUMS processing' directory
 path_tracking_sheet <- "SUMs_tracking form Smokeless Village"
 
-project_name <- "SmokelessVillage"
+project_name <- "NAMA Piloto Solar"
 #Text associating a given stove code with the full name to use in figures.
 stove_codes <- data.frame(stove = as.factor(c("Solar","Tradicional","Mejorada","Ventiladora","GLP","Carbon")),
                           stove_descriptions = as.factor(c("Solar","Tradicional","Mejorada","Ventiladora","GLP","Carbon")))
 
 stove_group_codes <- data.frame(group = as.factor(c("Intervencion","No-Intervencion")),  #Use these if there are different study arms.
                                 stove_groups = as.factor(c("Intervencion","No-Intervencion"))) #group variable in filter_sumsarized.R
+
+campaign_name = "Smokeless Village"
+stove_types = "LPG|TS|BG"  #Look for these stove types. 
+stove_groups = "SLV" #Look for these groups.
+
 
 cooking_group <- 40 # x minute window for grouping events together.
 cooking_duration_minimum <- 9  #Minutes
@@ -25,11 +30,12 @@ end_date_range <- "2020-12-1" #Do not include data after this in the analysis
 
 # Remove data from files selected as bad (they match the following strings, so they should be specific to the 
 #given file, not generic enough to remove more files than intended)
-bad_files <- paste(c("Exclude","|AMB","|Pre_Pilot-04_TMS_DL-01"
+bad_files <- paste(c("Exclude","|AMB","|Eliminar","|Pre_Pilot-04_TMS_DL-01"
                      ,"|Pre_Pilot-04_TMS_DL-01","|AMB"),collapse="")
 
 # Exclude data from the following households from the entire analysis. e.g.SHO_03 is removed
 HHID_remove <- paste(c("^SHO_03$","|^SHO_04$","|^MUS_01$","|^AMB$"),collapse="")
+
 
 
 

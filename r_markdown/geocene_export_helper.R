@@ -1,19 +1,19 @@
 #Import Geocene Studies data, organize it so it looks like Sumsarizer data.
+#***Data from other campaigns, stove types, and stove groups will be ignored!!***
 rm(list = ls())
 
-#Enter information for data to be analyzed:  
-#***Data from other campaigns, stove types, and stove groups will be ignored!!***
-campaign_name = "Smokeless Village"
-stove_types = "LPG|TS|BG"  #Look for these stove types. 
-stove_groups = "SLV" #Look for these groups.
+
+###***Enter parameter file name for data to be analyzed***###
+parameter_filename <- "parameter_file_NAMASolar.R" 
+
 
 # Include libraries
-library(data.table)
-library(dplyr)
-library(stringi)
-library(openxlsx)
+source('r_scripts/load.R')
 source_url("https://raw.githubusercontent.com/ricpie/sums_analysis/master/r_scripts/load.R")
+source(paste0('r_files/',parameter_filename)) #OG Codebase
 
+stove_types <- paste(stove_codes$stove,  collapse = "|")
+stove_groups <-paste(stove_group_codes$group,collapse = "|")
 
 # The name of the unzipped folder containing the Geocene Studies export
 studies_export_folder = 'Geocene Studies Output'
