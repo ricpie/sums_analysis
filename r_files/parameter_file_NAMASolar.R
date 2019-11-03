@@ -1,18 +1,23 @@
 #Parameter file for analysis for Boston College Smokeless Village study
 #Set path to tracking sheet relative to 'SUMS processing' directory
-path_tracking_sheet <- "SUMs_tracking form Smokeless Village"
+path_tracking_sheet <- NA #Set to NA if none available
+path_tracking_sheet_json <- "~/Dropbox/Peru 2019 NAMA Internal/Analysis/SUMS Tracking data/Perú_NAMA_SUMs_v3_results.json"
 
 project_name <- "NAMA Piloto Solar"
+
 #Text associating a given stove code with the full name to use in figures.
-stove_codes <- data.frame(stove = as.factor(c("Solar","Tradicional","Mejorada","Ventiladora","GLP","Carbon")),
-                          stove_descriptions = as.factor(c("Solar","Tradicional","Mejorada","Ventiladora","GLP","Carbon")))
+stove_codes <- data.frame(stove = as.factor(c("Solar","Tradicional","Tradicional","Mejorada","Ventilador","GLP","Carbon",
+                                              "stove_type:solar","stove_type:tradicional-fogon","stove_type:tradicional-lowtemp",
+                                              "Mejorada","stove_type:ventilador","stove_type:GLP","stove_type:Carbon","stove_type:tradicional-secundaria","Tradicional2")),
+                          stove_descriptions = as.factor(c("Solar","Tradicional","Tradicional","Mejorada","Ventilador","GLP","Carbon","Solar","Tradicional","Tradicional","Mejorada","Ventilador","GLP","Carbon","Tradicional2","Tradicional")))
 
-stove_group_codes <- data.frame(group = as.factor(c("Intervencion","No-Intervencion")),  #Use these if there are different study arms.
-                                stove_groups = as.factor(c("Intervencion","No-Intervencion"))) #group variable in filter_sumsarized.R
+stove_group_codes <- data.frame(group = as.factor(c("stove_type:ventilador","stove_type:solar","control","Ventilador","Solar","Control")),  #Use these if there are different study arms.
+                                stove_groups = as.factor(c("Ventilador","Solar","Control","Ventilador","Solar","Control"))) #group variable in filter_sumsarized.R
 
-campaign_name = "Smokeless Village"
-stove_types = "LPG|TS|BG"  #Look for these stove types. 
-stove_groups = "SLV" #Look for these groups.
+region_codes <- data.frame(region_code = as.factor(c("01","02","03","04","05","06","07","08","09","10","11","12")),  #Use these if there are different study arms.
+                                region = as.factor(c("LaLibertad","Pasco","Puno","Moquegua","Tacna","Arequipa","Huancavelica","Junin","Huanuco","Ucayali","Loreto","SanMartin"))) #group variable in filter_sumsarized.R
+
+campaign_name = "Piloto Solar y Ventilador"
 
 
 cooking_group <- 40 # x minute window for grouping events together.
@@ -30,7 +35,7 @@ end_date_range <- "2020-12-1" #Do not include data after this in the analysis
 
 # Remove data from files selected as bad (they match the following strings, so they should be specific to the 
 #given file, not generic enough to remove more files than intended)
-bad_files <- paste(c("Exclude","|AMB","|Eliminar","|Pre_Pilot-04_TMS_DL-01"
+bad_files <- paste(c("Excl","|AMB","|Eliminar","|Pre_Pilot-04_TMS_DL-01"
                      ,"|Pre_Pilot-04_TMS_DL-01","|AMB"),collapse="")
 
 # Exclude data from the following households from the entire analysis. e.g.SHO_03 is removed

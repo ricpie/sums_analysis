@@ -10,7 +10,6 @@ field_timeseries_plot <- function(df, y_var, x_var, facet_var,color_var, marker_
 
   ggplot(df, aes_string(y = y_var, x = x_var, color = color_var,shape = marker_shape)) +
     geom_point(alpha = 0.5) +
-    scale_fill_discrete(drop = FALSE) +
     facet_wrap(~df[[facet_var]], ncol = 1, scales = "free") +
     theme_minimal() +
     theme(legend.position = "top") +

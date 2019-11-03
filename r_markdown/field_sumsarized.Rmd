@@ -28,16 +28,16 @@ output:
   #2.  Make sure the parameter file is for the project you are using.  The parameter file must be located in the r_files folder.
 
   
-  parameter_filename <- "parameter_file_Nigeria_AfDB.R"  #Format example is :"parameter_file_HCCP_Ethiopia.R"
+  parameter_filename <- "parameter_file_NAMASolar.R"  #Format example is :"parameter_file_HCCP_Ethiopia.R"
   
   source(paste0('../r_files/',parameter_filename)) #OG Codebase
   
-  source('../r_files/parameter_file_ICDDRB.R') #OG Codebase
 ```
 
 ```{r load_libraries_functions}
   source('../r_scripts/load.R')
   source("../r_scripts/functions.R")
+  source("../r_scripts/filter_metadata.R")
   source("../r_scripts/load_data.r")
   source("../r_scripts/plots.R")
   source("../r_scripts/filter_sum_data.R")
@@ -68,16 +68,16 @@ output:
 
   #Load metadata from the Excel tracking sheet if available.
   if (exists("path_tracking_sheet_json") && !is.na(path_tracking_sheet_json)) {
-      saveRDS(load_meta_json(path_tracking_sheet_json), file = "~/Dropbox/Kigeme SUMs Analysis/SUMS Analysis R Code/r_files/jsonmetadata.RDS")
+      saveRDS(load_meta_json(path_tracking_sheet_json), file = "../r_files/jsonmetadata.RDS")
       metadata <- readRDS("../r_files/jsonmetadata.RDS")
   } else if (!is.na(path_tracking_sheet)){
       # saveRDS(load_meta_download(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
       saveRDS(load_meta_download_v2(path_tracking_sheet), file = "../r_files/metadata_download.RDS")
       metadata <- readRDS("../r_files/metadata_download.RDS")
-  }
+  } else {metadata = NA}
 
   #Filter the metadata using this function, including fixing household names and addresses
-  metadata <- filter_metadata_fun(metadata)
+  if(!is.na(metadata)){metadata <- filter_metadata_fun(metadata)}
 
   #Start date for eligible data
   print(start_date_range)
@@ -127,7 +127,7 @@ kable(stove_codes)
 
 # #Initialize the cooking_events frame.
  cooking_events <- data.frame(start_time=as.POSIXct(character()),
-                    end_time=as.POSIXct(character()), group=factor(),  HHID=factor(),
+                    end_time=as.POSIXct(character()), group=factor(), region=factor(), HHID=factor(),
                     logger_id=factor(),stove=factor(), logging_duration_days=as.numeric(),
                     datetime_placed = as.POSIXct(character()), datetime_removal = as.POSIXct(character()),
                     file_indices = as.numeric(), filename=character(),fullsumsarizer_filename=character(),comments=character(),
@@ -195,6 +195,7 @@ kable(stove_codes)
                   data.frame(start_time= as.POSIXct(temp$datetime[breakstart]),
                   end_time=as.POSIXct(temp$datetime[breakend]), 
                   group=as.factor(temp$group[breakstart]),
+                  region=as.factor(temp$region[breakstart]),
                   HHID=as.factor(temp$HHID[breakstart]),
                   logger_id=factor(temp$logger_id[breakstart]),
                   stove=factor(temp$stove[breakstart]),
@@ -217,6 +218,7 @@ kable(stove_codes)
                   data.frame(start_time=as.POSIXct(temp$datetime[1]),
                   end_time=as.POSIXct(temp$datetime[1]), 
                   group=as.factor(temp$group[1]),
+                  region=as.factor(temp$region[breakstart]),
                   HHID=as.factor(temp$HHID[1]), 
                   logger_id=factor(temp$logger_id[1]),
                   stove=factor(temp$stove[1]), 
@@ -243,7 +245,8 @@ kable(stove_codes)
                                                      "excluded_household_list",qc)) %>% #Flag data from HHID's that should be removed.
                           dplyr::mutate(qc = if_else(start_time>end_date_range | start_time<start_date_range,
                                                      "outside study date range",qc)) %>%
-                          dplyr::mutate(qc = if_else(grepl("amb",fullsumsarizer_filename,ignore.case=TRUE),"ambient",qc))
+                          dplyr::mutate(qc = if_else(grepl("amb",fullsumsarizer_filename,ignore.case=TRUE),"ambient",qc)) %>%
+   dplyr::mutate(region = gsub('.csv','',region))
                
 ```
 
@@ -261,7 +264,7 @@ ok_cooking_events_unfiltered <-  dplyr::mutate(cooking_events,qc,if_else(is.na(s
         #have no uses in the deployments. At this point all events except empty files have use_flag = TRUE.
         dplyr::mutate(if_else(grepl("out_of_placement_range",qc_dates),"out_of_placement_range",qc)) %>%
         dplyr::select(filename,fullsumsarizer_filename,start_time,end_time,duration_minutes,
-              HHID,stove,logger_id,group,
+              HHID,stove,logger_id,group,region,
               stove_descriptions,stove,logging_duration_days,datetime_placed,
               datetime_removal, units,comments,use_flag,qc) %>%
         dplyr::mutate(start_hour = hour(start_time) + minute(start_time)/60) %>%
@@ -328,11 +331,11 @@ for (i in 1:length(unique(ok_cooking_events$filename))) {
 
         # Merge the two datasets: the full dates and original data
         merged.data <- merge(all.dates.frame, temp, all=T) %>%
-            tidyr::fill(filename,fullsumsarizer_filename,HHID,stove,logger_id,group,
+            tidyr::fill(filename,fullsumsarizer_filename,HHID,stove,logger_id,group,region,
                         stove_descriptions,logging_duration_days,datetime_placed,
                         datetime_removal,units,comments,
                         start_hour,.direction = c("up")) %>%
-            tidyr::fill(filename,fullsumsarizer_filename,HHID,stove,logger_id,group,
+            tidyr::fill(filename,fullsumsarizer_filename,HHID,stove,logger_id,group,region,
                         stove_descriptions,logging_duration_days,datetime_placed,
                         datetime_removal,units,comments,
                         start_hour,.direction = c("down"))  %>%
@@ -413,7 +416,6 @@ stats_grouped_by_hhid_stove <- dplyr::group_by(ok_cooking_events_padded,stove_de
                      events = sum(use_flag,na.rm=TRUE),
                      start_date=median(datetime_placed),
                      end_date=median(datetime_removal))
-  
 kable(stats_grouped_by_hhid_stove, digits=2)
 
 
@@ -454,6 +456,30 @@ stats_by_stove <- dplyr::group_by(stats_grouped_by_hhid_stove,stove_descriptions
 kable(stats_by_stove, digits=2)
 
 
+#Summarize use for each household and stove.
+stats_grouped_by_hhid_stove_region <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group,region,logger_id) %>%
+    # calculate events per day for each household and stove.  Can then take summary stats of those.
+    dplyr::summarise(events_per_day=sum(use_flag,na.rm=TRUE)/length(unique(day_month_year)),
+                     minutes_per_day_stove_hhid = sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year)),
+                     minutes_per_event_stove_hhid = sum(duration_minutes,na.rm=TRUE)/sum(use_flag,na.rm=TRUE),
+                     days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE),
+                     events = sum(use_flag,na.rm=TRUE),
+                     start_date=median(datetime_placed),
+                     end_date=median(datetime_removal))
+kable(stats_grouped_by_hhid_stove_region, digits=2)
+#Calculate summary for the overall groups and stoves and regions from the household-wise results above.  Should this be weighted in case one hh has way more data?
+stats_by_stove_group_region <- dplyr::group_by(stats_grouped_by_hhid_stove_region,stove_descriptions,group,region) %>%
+    dplyr::summarise(mean_events_per_day=mean(events_per_day, na.rm = TRUE),
+                       median_events_per_day=median(events_per_day, na.rm = TRUE),
+                       sd_events_per_day=sd(events_per_day, na.rm = TRUE),
+                       mean_minutes_per_day_stove_hhid=mean(minutes_per_day_stove_hhid, na.rm = TRUE),
+                       median_minutes_per_day_stove_hhid=median(minutes_per_day_stove_hhid, na.rm = TRUE),
+                       sd_minutes_per_day_stove_hhid=sd(minutes_per_day_stove_hhid, na.rm = TRUE),
+                       mean_days_logged=mean(days_logged_per_group_by_stove, na.rm = TRUE),
+                       house_stoves=n()) %>%
+    dplyr::filter(!is.na(stove_descriptions)) 
+kable(stats_by_stove_group_region, digits=2)
+
 #Summarize use for each household and stove, by month
 stats_grouped_by_hhid_stove_month <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group,month_year) %>%
     # calculate events per day for each household and stove.  Can then take summary stats of those.
@@ -479,7 +505,7 @@ kable(stats_by_stove_group_month, digits=2)
 #Write summary stats to an excel workbook
 list_of_datasets <- list("By Stove Group and HHID" = stats_grouped_by_hhid_stove, "By Stove Group" = stats_by_stove_group,
                          "By Stove Type" = stats_by_stove,"By HHID and Monthly" = stats_grouped_by_hhid_stove_month,
-                         "By Group and Monthly" = stats_by_stove_group_month)
+                         "By Group and Monthly" = stats_by_stove_group_month,"By group and region and HHID" = stats_grouped_by_hhid_stove_region,"By group and region"=stats_by_stove_group_region)
 openxlsx::write.xlsx(list_of_datasets, file = paste0("Summary Statistics ",format(now(),"%d-%b-%y"),".xlsx"))
 ```
 
@@ -491,18 +517,21 @@ openxlsx::write.xlsx(list_of_datasets, file = paste0("Summary Statistics ",forma
 
 #Plot time series for each household, colored by filename.  For data completion purposes.
 uniqueHHIDs <-sort(unique(unique(sumsarized_filtered$HHID)))
-for (i in 1:length(uniqueHHIDs)){
-  gg <- field_timeseries_plot(dplyr::filter(sumsarized_filtered,HHID == uniqueHHIDs[i]), "stove_temp", "datetime", "HHID", "stove_descriptions","qc")
-  print(gg)
-}
+# for (i in 1:length(uniqueHHIDs)){
+#   gg <- field_timeseries_plot(dplyr::filter(sumsarized_filtered,HHID == uniqueHHIDs[i]), "stove_temp", "datetime", "HHID", "stove_descriptions","qc")
+#   print(gg)
+# }
 ```
 
 # Plot data time series, removing flagged files and households
 * Plot usage rates (uses/day) by stove type, and region
-```{r plot_nonflagged_timeseries, fig.width=10, fig.height=70}
+```{r plot_nonflagged_timeseries, fig.width=8, fig.height=4}
 #Plot time series for each household, colored by filename.  Filtered out bad qc data
-# gg <-field_timeseries_plot(dplyr::filter(sumsarized_filtered,grepl("ok",qc)),"stove_temp", "datetime", "HHID", "stove_descriptions","qc") 
-# gg
+# for (i in 1:length(uniqueHHIDs)){
+#   gg <- field_timeseries_plot(dplyr::filter(sumsarized_filtered,HHID == uniqueHHIDs[i]) %>% dplyr::filter(grepl("ok",qc))
+#                               , "stove_temp", "datetime", "HHID", "stove_descriptions","state")
+#   print(gg)
+# }
 ```
 
 # List of files without associated HHID and metadata from the tracking sheet.
@@ -521,27 +550,16 @@ filtered_files <- unique(dplyr::filter(sumsarized_filtered,grepl("ok",qc)) %>% d
 
 # Boxplot usage results
 
-```{r boxplots_usage, fig.width=7, fig.height=4}
+```{r boxplots_usage, fig.width=8, fig.height=5}
 
-give.n <- function(x){
-   return(c(y = 0, label = length(x)))
-}
-
-give.mean <- function(x){
-   return(c(y =mean(x)+.1, label = round(mean(x),digits=2)))
-}
-
-
-give.mean_minutes <- function(x){
-   return(c(y =mean(x)+10, label = round(mean(x),digits=2)))
-}
-
+give.n <- function(x){return(c(y = 0, label = length(x)))}
+give.mean <- function(x){return(c(y =mean(x)+.1, label = round(mean(x),digits=2)))}
+give.mean_minutes <- function(x){   return(c(y =mean(x)+10, label = round(mean(x),digits=2)))}
 #To make box and whiskers quantiles rather than IQRs.
 f <- function(x) {
   r <- quantile(x, probs = c(0.05, 0.25, 0.5, 0.75, 0.95))
   names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
-  r
-}
+  r}
 
 #Plot average uses per day, by group, using the padded data set. (one data point per household-stove combo, separated by group)
 grouped_data_means<- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
@@ -596,6 +614,8 @@ g2 <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
 g2
 #ggsave(filename="../figures/AverageUsesPerDay_All.png", plot=g2,width = 6, height = 4)
 
+
+
 #Plot average minutes used per day for each stove-household combination
 g3<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
   dplyr::summarise(avg_events_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>%
@@ -646,9 +666,29 @@ g4
 
 
 ```
+```{r boxplots_usage_region, fig.width=8, fig.height=7}
+#Plot average minutes used per day for each stove-household combination
+g3a<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,region,group) %>%
+  dplyr::summarise(avg_events_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>%
+  ggplot(aes(x=stove_descriptions, y = avg_events_per_day)) +
+  stat_summary(fun.data = f, geom="boxplot") +   
+  geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", 
+               shape=18, size=4.5,alpha = 0.5)+
+  stat_summary(fun.data = give.mean_minutes, geom = "text",colour="blue") + 
+  facet_grid( group~region,scales = "free", space = "free", labeller = label_wrap_gen(width = 12, multi_line = TRUE)) +
+  labs(y="Minutes used per day",x="",size=10) + 
+  stat_summary(fun.data = give.n, geom = "text") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1,size=10),
+        axis.text.y = element_text(size=10))
+g3a
+
+```
+
 
 # Time trend plots
-```{r plot_time_trends, fig.width=7, fig.height=4}
+```{r plot_time_trends, fig.width=8, fig.height=6}
 
 #Plot event duration per day by day of week.  Do not use the padded data set here, since there are non-events included in it, and they have an associated time.
 g5 <- ggplot(ok_cooking_events, aes(x=day_of_week, y = duration_minutes)) + 

@@ -45,16 +45,16 @@ load_sumsarized <- function(substitution_list){
   ) %>%
     dplyr::bind_rows() %>%
     # convert time to secs in day and fix file problems
-    dplyr::mutate(datetime = parse_date_time(gsub("/00", "/16", datetime),orders = c("y-m-d HMS", "m/d/y HMS"))) %>% #For AfDB Nigeria only.
+    # dplyr::mutate(datetime = parse_date_time(gsub("/00", "/16", datetime),orders = c("y-m-d HMS", "m/d/y HMS"))) %>% #For AfDB Nigeria only.
     #Do some file name formatting, looking for common errors, and unique ones.
-    dplyr::mutate(sumsarizer_filename = if_else(grepl("DL4",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL4.csv", sumsarizer_filename),sumsarizer_filename)) %>% #Special case for importing DL4 and DL5, for AfDB Nigeria only.
-    dplyr::mutate(sumsarizer_filename = if_else(grepl("DL5",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL5.csv", sumsarizer_filename),sumsarizer_filename))%>% #For AfDB Nigeria only.
+    # dplyr::mutate(sumsarizer_filename = if_else(grepl("DL4",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL4.csv", sumsarizer_filename),sumsarizer_filename)) %>% #Special case for importing DL4 and DL5, for AfDB Nigeria only.
+    # dplyr::mutate(sumsarizer_filename = if_else(grepl("DL5",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL5.csv", sumsarizer_filename),sumsarizer_filename))%>% #For AfDB Nigeria only.
     dplyr::mutate(fullsumsarizer_filename = sumsarizer_filename) %>%
     dplyr::mutate(sumsarizer_filename = substring(sumsarizer_filename,
                                        sapply(sumsarizer_filename, function(x) unlist(gregexpr('/',x,perl=TRUE))[1])+1,100)) %>% #For AfDB Nigeria only.
     # dplyr::mutate(sumsarizer_filename = gsub("KE", "_KE", sumsarizer_filename,ignore.case = TRUE)) %>% # the line below does this, but general and with the names given in the main file.
     dplyr::mutate(sumsarizer_filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,sumsarizer_filename,ignore.case = TRUE)) %>% #Make sure the underscores are placed before the stove type.#For AfDB Nigeria only.
-    dplyr::mutate(sumsarizer_filename = gsub(" ","_",sumsarizer_filename))  %>%#For AfDB Nigeria only.
+    # dplyr::mutate(sumsarizer_filename = gsub(" ","_",sumsarizer_filename))  %>%#For AfDB Nigeria only.
     dplyr::mutate(sumsarizer_filename = gsub("__","_",sumsarizer_filename)) %>%#For AfDB Nigeria only.
     dplyr::mutate(filename = substring(filename, sapply(filename, function(x) tail(unlist(gregexpr('/',x,perl=TRUE)),1)[1])+1, 100)) %>%
     #dplyr::mutate(filename = gsub("KE", "_KE", filename,ignore.case = TRUE)) %>%
