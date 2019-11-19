@@ -207,8 +207,22 @@ ok_cooking_events_unfiltered <-  dplyr::mutate(cooking_events,qc,if_else(is.na(s
   dplyr::mutate(qc=if_else(is.na(HHID),"NA_HHID",qc)) %>%
   dplyr::mutate(qc=if_else(is.na(datetime_placed),"NA_datetime_placed",qc)) 
 
-#Removes data with qc listed as anything but 'ok'. 
-ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,grepl("ok",qc)) %>% #Keep only data marked 'ok'
+#Create padded time series of cooking events, so there is an event for every day, rather than gaps.  This facilitates stacking and stove use fraction analyses.
+ok_cooking_events_padded <- data.frame(stringsAsFactors = FALSE)
+
+ok_cooking_events_padded <- ldply(unique(ok_cooking_events_unfiltered$fullsumsarizer_filename),pad_fun,ok_cooking_events_unfiltered,.parallel = TRUE) 
+
+#time format was messed up somehow in making the padded set, correct it here.
+ok_cooking_events_padded <- dplyr::mutate(ok_cooking_events_padded,datetime_removal = as.POSIXct(datetime_removal,origin = "1970-1-1", tz = "GMT")) %>%
+  dplyr::arrange((start_time)) %>%
+  dplyr::arrange(desc(stove_descriptions)) %>%  #Sort so we toss the earlier end dates when deleting distinct values.
+  dplyr::mutate(month_year = format(start_time,"%b-%y")) %>%
+  dplyr::mutate(month_year = factor(month_year, unique(month_year), ordered=TRUE)) %>%
+  dplyr::mutate(qc = "ok") #New qc values default to zero during padding, but they are all already qc-filtered, so reset to TRUE
+
+#Filter the dataset.  Kept 'bad' and short events to get the full padded dataset.  Now can remove them
+ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,duration_minutes>cooking_duration_minimum | use_flag==FALSE) %>%
+  dplyr::filter(grepl("ok",qc)) %>% #Keep only data marked 'ok'
   droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
 
 #Get list of files removed, and reasons why:
@@ -220,69 +234,6 @@ list_of_files_with_bad_events <-  dplyr::mutate(not_ok_cooking_events,logging_du
   dplyr::distinct(fullsumsarizer_filename,qc, .keep_all = TRUE)
 kable(list_of_files_with_bad_events) #Plot the list of bad files so we can look at them and re-analyze after correcting any mistakes.
 
-
-#Create padded time series of cooking events, so there is an event for every day, rather than gaps.  This facilitates stacking and stove use fraction analyses.
-ok_cooking_events_padded <- data.frame(stringsAsFactors = FALSE)
-uniquers <- unique(ok_cooking_events$fullsumsarizer_filename)
-for (i in 1:length(unique(ok_cooking_events$filename))) {
-  
-  temp <- dplyr::filter(ok_cooking_events,uniquers[i]==fullsumsarizer_filename) %>%
-    dplyr::arrange(start_time)
-  
-  if (dim(temp)[1]>0) {    
-    # generate a time sequence with 1 day intervals to fill in
-    # missing dates
-    all.dates <- data.frame(dates = seq(temp$datetime_placed[1], temp$datetime_removal[1], by="day"),stringsAsFactors = FALSE) %>%
-      dplyr::mutate(day_month_year = as.Date(dates)) %>%
-      dplyr::filter(!day_month_year %in% temp$day_month_year) #Get rid of extra days
-    
-    # Convert all dates to a data frame. Note that we're putting
-    # the new dates into a column called "start_time" just like the
-    # original column. This will allow us to merge the data.
-    all.dates.frame <- data.frame(list(start_time=all.dates$dates),list(end_time=all.dates$dates), 
-                                  list(day_month_year = as.Date(all.dates$dates)),
-                                  list(week_year = format(all.dates$dates,"%V-%y")),
-                                  list(day_of_week = weekdays(all.dates$dates)),stringsAsFactors = FALSE) %>%
-      dplyr::mutate(month_year = format(start_time,"%b-%y")) %>%
-      dplyr::mutate(month_year = factor(month_year, unique(month_year), ordered=TRUE))
-    
-    
-    # Merge the two datasets: the full dates and original data
-    merged.data <- merge(all.dates.frame, temp, all=T) %>%
-      tidyr::fill(filename,fullsumsarizer_filename,HHID,stove,logger_id,group,region,
-                  stove_descriptions,logging_duration_days,datetime_placed,
-                  datetime_removal,units,comments,
-                  start_hour,.direction = c("up")) %>%
-      tidyr::fill(filename,fullsumsarizer_filename,HHID,stove,logger_id,group,region,
-                  stove_descriptions,logging_duration_days,datetime_placed,
-                  datetime_removal,units,comments,
-                  start_hour,.direction = c("down"))  %>%
-      dplyr::mutate(use_flag = replace(use_flag, is.na(use_flag), FALSE)) 
-    
-    
-    merged.data %>% mutate_if(is.factor, as.character) -> merged.data
-    
-    merged.data$use_flag[is.na(merged.data$use_flag)] <- FALSE
-    merged.data[is.na(merged.data)] <- 0
-    # The above merge set the new observations to NA.
-    # To replace those with a 0, we must first find all the rows
-    # and then assign 0 to them.
-    #merged.data <-dplyr_if_else(merged.data)
-    
-    ok_cooking_events_padded <- rbind(ok_cooking_events_padded,merged.data)
-  }
-}
-#time format was messed up somehow in making the padded set, correct it here.
-ok_cooking_events_padded <- dplyr::mutate(ok_cooking_events_padded,datetime_removal = as.POSIXct(datetime_removal,origin = "1970-1-1", tz = "GMT")) %>%
-  dplyr::arrange((start_time)) %>%
-  dplyr::arrange(desc(stove_descriptions)) %>%  #Sort so we toss the earlier end dates when deleting distinct values.
-  dplyr::mutate(month_year = format(start_time,"%b-%y")) %>%
-  dplyr::mutate(month_year = factor(month_year, unique(month_year), ordered=TRUE)) %>%
-  dplyr::mutate(qc = "ok") #New qc values default to zero during padding, but they are all already qc-filtered, so reset to TRUE
-
-#Finish filtering the dataset.  Kept 'bad' and short events to get the full padded dataset.  Now can remove them
-ok_cooking_events <- dplyr::filter(ok_cooking_events,duration_minutes>cooking_duration_minimum | use_flag==FALSE) 
-
 #Remove household-stoves that have less than this many days... do it to the padded data set or both?  Should be done somehow for the usage fraction results
 #dplyr::mutate(qc = if_else(logging_duration_days < total_days_logged_minimum,"short_total_logging_duration",qc)) %>% # Only keep data from house-stove combos with more than this number of days of data.
 
@@ -293,9 +244,7 @@ ok_cooking_events <- dplyr::filter(ok_cooking_events,duration_minutes>cooking_du
 # Summarize data
 ```{r summarize_data,echo=TRUE}
 
-
 ok_datasummary <- summarise_all(ok_cooking_events,funs(n_distinct(.)))
-
 
 #Summarize use for each household
 stats_grouped_by_hhid_only <- dplyr::group_by(ok_cooking_events_padded,HHID) %>%

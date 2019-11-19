@@ -335,3 +335,51 @@ event_fun <- function(i,sumsarized_filtered){
   }
   return(cooking_events)
 }
+
+#Pad the data set to ensure that files without events are taken into account, and that days without events are properly accounted for in analyses.
+pad_fun <- function(i,ok_cooking_events_unfiltered){
+  temp <- dplyr::filter(ok_cooking_events_unfiltered,uniquers[i]==fullsumsarizer_filename) %>%
+    dplyr::arrange(start_time)
+  
+  if (dim(temp)[1]>0) {    
+    # generate a time sequence with 1 day intervals to fill in
+    # missing dates
+    all.dates <- data.frame(dates = seq(temp$datetime_placed[1], temp$datetime_removal[1], by="day"),stringsAsFactors = FALSE) %>%
+      dplyr::mutate(day_month_year = as.Date(dates)) %>%
+      dplyr::filter(!day_month_year %in% temp$day_month_year) #Get rid of extra days
+    
+    # Convert all dates to a data frame. Note that we're putting
+    # the new dates into a column called "start_time" just like the
+    # original column. This will allow us to merge the data.
+    all.dates.frame <- data.frame(list(start_time=all.dates$dates),list(end_time=all.dates$dates), 
+                                  list(day_month_year = as.Date(all.dates$dates)),
+                                  list(week_year = format(all.dates$dates,"%V-%y")),
+                                  list(day_of_week = weekdays(all.dates$dates)),stringsAsFactors = FALSE) %>%
+      dplyr::mutate(month_year = format(start_time,"%b-%y")) %>%
+      dplyr::mutate(month_year = factor(month_year, unique(month_year), ordered=TRUE))
+    
+    
+    # Merge the two datasets: the full dates and original data
+    merged.data <- merge(all.dates.frame, temp, all=T) %>%
+      tidyr::fill(filename,fullsumsarizer_filename,HHID,stove,logger_id,group,region,
+                  stove_descriptions,logging_duration_days,datetime_placed,
+                  datetime_removal,units,comments,
+                  start_hour,.direction = c("up")) %>%
+      tidyr::fill(filename,fullsumsarizer_filename,HHID,stove,logger_id,group,region,
+                  stove_descriptions,logging_duration_days,datetime_placed,
+                  datetime_removal,units,comments,
+                  start_hour,.direction = c("down"))  %>%
+      dplyr::mutate(use_flag = replace(use_flag, is.na(use_flag), FALSE)) 
+    
+    
+    merged.data %>% mutate_if(is.factor, as.character) -> merged.data
+    
+    merged.data$use_flag[is.na(merged.data$use_flag)] <- FALSE
+    merged.data[is.na(merged.data)] <- 0
+    # The above merge set the new observations to NA.
+    # To replace those with a 0, we must first find all the rows
+    # and then assign 0 to them.
+    
+    ok_cooking_events_padded <- rbind(ok_cooking_events_padded,merged.data)
+  }
+}
