@@ -1,0 +1,168 @@
+---
+title: "PeruNama2019_Plotting"
+author: "ricardo_piedrahita"
+date: "11/4/2019"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    self_contained: yes
+---
+
+
+```{r setup, include=FALSE,echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source('../r_scripts/load.R')
+source('../r_scripts/kpt_plot_funs.R')
+ok_cooking_events_padded<- readRDS('../r_files/ok_cooking_events_padded.RDS')
+# source('../r_scripts/load_data.R')
+```
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.path='../figures/', warning=FALSE, message=FALSE, cache=FALSE)
+```
+
+# Import temperature data and metadata files
+```{r load_data, warning=FALSE,echo=FALSE}
+#Loads all SUMSARIZED data.  Reloads the RDS file if reimport_data is set to FALSE.  This is faster if all the data has been previously imported by setting it to TRUE.
+kpt_path <- "~/Dropbox/Peru 2019 NAMA Internal/Analysis/KPT and Survey/KPT_V29.10.2019_19.00_V1.xlsx"  
+kpt_data_all <- read_excel(kpt_path,sheet = 'Check_MR',skip=4)
+saveRDS(kpt_data_all, file ="../r_files/kpt_data_all.rds")
+
+sample_path <- "~/Dropbox/Peru NAMA 2019 Field/Field information/Informes de campo Fase 1/KPT Muestra Resumen_MINEM_30.11.xlsx"
+sample_data <- read_excel(sample_path,sheet = 'Reporte',skip=0)
+sample_data$`CENTRO POBLADO` <- as.factor(sample_data$`CENTRO POBLADO`)
+sample_data$HHID <- as.numeric(sample_data$`CODIGO DE VIVIENDA`)
+kpt_data_all <- suppressWarnings(as.data.table(merge(kpt_data_all,sample_data,by="HHID")))
+
+#Analyze KPT phase 1 and phase 2 data separately if needed.  Mainly useful for plotting and reporting needs.        
+# survey_data_fase1 <- dplyr::filter(survey_data_all,RegionName == "Huanuco" | RegionName == "Huancavelica" | RegionName == "Cusco" ) 
+```
+
+# Plot functions for main KPT results
+
+```{r figures,echo=FALSE, fig.width=7, fig.height=7}
+
+all_plots <- function(kpt_data_all){
+  
+  #Box plot of KPT results, by region, and community, and by stove type, per capita
+  region_CO2e_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="Group", y_var = "`AnnualCO2eemissionsperSA[tons/year/SA]`", facet_var1 = "RegionName",  plot_title="", xlabel="",ylabel = "Emisiones CO2e [t/año/SA]", give.mean_minutes_kg); print(region_CO2e_SAplot)
+      
+  region_MJ_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="Group", y_var = "`AverageMJ/day/SA`", facet_var1 = "RegionName", plot_title="", xlabel="",ylabel = "Consumo de energia [MJ/día/SA]",give.mean_minutes_energia); print(region_MJ_SAplot)
+ 
+      
+  region_biomasskg_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="`Group`", y_var = "`AverageBiomassKG/day/SA`", facet_var1 = "RegionName", plot_title="", xlabel="",ylabel = "Consumo de biomasa [kg/día/SA]",give.mean_minutes_kg);print(region_biomasskg_SAplot)
+         
+  region_LPG_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="Group", y_var = "`AverageLPGMJ/day/SA`", facet_var1 = "RegionName", plot_title="", xlabel="",ylabel = "Energia de GLP por día por adulto estándar [MJ/día/SA]" ,give.mean_minutes_kg); print(region_LPG_SAplot)
+
+  #Box plot of KPT results, countrywide, and by stove type.
+  national_CO2e_SAplot <- kpt_plot_group(kpt_data_all, x_var="`Group`", y_var = "`AnnualCO2eemissionsperSA[tons/year/SA]`",  plot_title="", xlabel="",ylabel = " Emisiones CO2e por año por adulto estandar [t/año/SA]",give.mean_minutes_kg);print(national_CO2e_SAplot)
+  
+  national_MJ_SAplot <- kpt_plot_group(kpt_data_all, x_var="`Group`", y_var = "`AverageMJ/day/SA`",  plot_title="", xlabel="",ylabel = "Consumo de energia por día por adulto estándar [MJ/día/SA]",giver=give.mean_minutes_energia ); print(national_MJ_SAplot)
+  
+  #Stove used more less or same as typical, day 1
+  kpt_MoreLess = melt(kpt_data_all,id=c("HHID","Group"),
+                      measure=c("Visit2MasMenosMismo","Visit3MasMenosMismo","Visit4MasMenosMismo"))
+  gMoreLess <- ggplot(kpt_MoreLess,aes(value)) +
+    geom_bar()+
+    facet_grid(~Group, scale="free_x",space = "free") +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+    # scale_y_continuous(breaks=pretty_breaks()) + 
+    labs(y="Hogares",x="") 
+  print(gMoreLess)
+}
+# 
+# lm_eqn = function(df){
+#     m = lm(`Primary stove age (months)` ~ `Annual CO2e emissions per SA [tons/year/SA]`, df);
+#     eq <- substitute(~~R^2~"="~r2, 
+#                      list(r2 = format(summary(m)$r.squared, digits = 3)))
+#     as.character(as.expression(eq));                 
+# }
+# eqns <- by(kpt_data, kpt_data$`Annual CO2e emissions per SA [tons/year/SA]`, lm_eqn)
+# df2 <- data.frame(eq = unclass(eqns), roi_size = as.numeric(names(eqns)))
+
+```
+# Phase 1 KPT figures
+```{r all_phase1_plots,echo=TRUE,fig.width=7, fig.height=7}
+all_plots(kpt_data_all)
+```
+
+# T-test plots
+```{r ttestplots,echo=TRUE,fig.width=7, fig.height=7}
+
+ttestplot <-  ggplot(kpt_data_all,aes_string(x="Group", y = "`AverageBiomassKG/day/SA`")) +
+  stat_summary(fun.data = f, geom="boxplot") +   
+  geom_jitter(height = 0,width = 0.1,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", shape=18, size=4.5,alpha = 0.5)+
+  facet_wrap(~RegionName,ncol = 3,labeller = labeller(facet_var = label_wrap_gen(width = 15))) +
+  stat_compare_means(method = "t.test")+  
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+labs(y="Biomasa kg/dia/SA",x="") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) 
+ttestplot
+ttestplot2 <-  ggplot(kpt_data_all,aes_string(x="Group", y = "`AnnualCO2eemissionsperSA[tons/year/SA]`")) +
+  stat_summary(fun.data = f, geom="boxplot") +   
+  geom_jitter(height = 0,width = 0.1,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", shape=18, size=4.5,alpha = 0.5)+
+  facet_wrap(~RegionName,ncol = 3,labeller = labeller(facet_var = label_wrap_gen(width = 15))) +
+  stat_compare_means(method = "t.test") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+labs(y="tCO2e/año/SA",x="") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))  
+ttestplot2
+ttestplot3 <-  ggplot(kpt_data_all,aes_string(x="Group", y = "`AverageMJ/day/SA`")) +
+  stat_summary(fun.data = f, geom="boxplot") +   
+  geom_jitter(height = 0,width = 0.1,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", shape=18, size=4.5,alpha = 0.5)+
+  facet_wrap(~RegionName,ncol = 3,labeller = labeller(facet_var = label_wrap_gen(width = 15))) +
+  stat_compare_means(method = "t.test") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+    labs(y="MJ/dia/SA",x="") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))  
+ttestplot3
+ttestplot4 <-  ggplot(kpt_data_all,aes_string(x="Group", y = "`AverageLPGMJ/day/SA`")) +
+  stat_summary(fun.data = f, geom="boxplot") +
+  geom_jitter(height = 0,width = 0.1,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", shape=18, size=4.5,alpha = 0.5)+
+  facet_wrap(~RegionName,ncol = 3,labeller = labeller(facet_var = label_wrap_gen(width = 15)))+
+  stat_compare_means(method = "t.test")+
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+    labs(y="GLP MJ/dia/SA",x="") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))  
+ttestplot4
+```
+
+
+# City level plots
+```{r ttestplots_citylevel,echo=TRUE,fig.width=7, fig.height=10}
+region_community_MJ_SAplot <- kpt_plot_twovar(kpt_data_all, x_var="Group", y_var = "`AverageMJ/day/SA`", facet_var1 = "RegionName", facet_var2 = "`CENTRO POBLADO`", plot_title="", xlabel="",ylabel = "Consumo de energia [MJ/día/SA]",give.mean_minutes_kg ); print(region_community_MJ_SAplot)
+  
+      region_community_CO2e_SAplot <- kpt_plot_twovar(kpt_data_all, x_var="Group", y_var = "`AnnualCO2eemissionsperSA[tons/year/SA]`", facet_var1 = "RegionName", facet_var2 = "`CENTRO POBLADO`", plot_title="", xlabel="",ylabel = "Emisiones CO2e [t/año/SA]",give.mean_minutes_kg ); print(region_community_CO2e_SAplot)
+      
+      region_community_biomasskg_SAplot <- kpt_plot_twovar(kpt_data_all, x_var="Group", y_var = "`AverageBiomassKG/day/SA`", facet_var1 = "RegionName", facet_var2 = "`CENTRO POBLADO`", plot_title="", xlabel="",ylabel = "Consumo de biomasa [kg/día/SA]",give.mean_minutes_kg ); print(region_community_biomasskg_SAplot)
+    
+ttestplot2community <-  ggplot(kpt_data_all,aes_string(x="Group", y = "`AnnualCO2eemissionsperSA[tons/year/SA]`")) +
+  stat_summary(fun.data = f, geom="boxplot") +   
+  geom_jitter(height = 0,width = 0.1,alpha = 0.25) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", shape=18, size=4.5,alpha = 0.5)+
+  facet_wrap(`CENTRO POBLADO`~RegionName,ncol = 3,labeller = labeller(facet_var = label_wrap_gen(width = 15))) +
+  stat_compare_means(method = "t.test") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+labs(y="tCO2e/año/SA",x="") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))  
+ttestplot2community
+```
+
+# KPT-SUMs comparison plots
+```{r kpt_sums_comparison,echo=TRUE,fig.width=7, fig.height=10}
+# Use cooking events (ok_cooking_events_padded), and KPT data to get cooking events/times with each stove during KPT periods.  
+# Merge ok_cooking_events_padded with KPT data using HHID as keys.  Group by HHID. Flag data between start time and 3 days-post.
+kpt_start <- dplyr::mutate(kpt_data_all,startdatetime=as.POSIXct(paste(Startdate, substr(Starttime,1,8)), format="%Y-%m-%d %H:%M:%S")) %>%
+  dplyr::select(HHID,startdatetime) %>%
+  dplyr::mutate(enddatetime = startdatetime + 3*86400)
+
+cooking_kpt <- dplyr::left_join(dplyr::mutate(ok_cooking_events_padded,HHID = as.numeric(HHID)),kpt_start,by='HHID')  %>%
+  dplyr::filter(!is.na(startdatetime))
+
+# Compare the behaviors with the average use from the rest of the time.
+
+
+
+```
+

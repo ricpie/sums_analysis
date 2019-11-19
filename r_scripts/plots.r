@@ -7,15 +7,15 @@
 # plot timeseries data (default by filename)
 # takes a data frame and a column name of variable to plot
 field_timeseries_plot <- function(df, y_var, x_var, facet_var,color_var, marker_shape) {
-
+  
   ggplot(df, aes_string(y = y_var, x = x_var, color = color_var,shape = marker_shape)) +
     geom_point(alpha = 0.5) +
     facet_wrap(~df[[facet_var]], ncol = 1, scales = "free") +
     theme_minimal() +
     theme(legend.position = "top") +
     ylab(paste0(y_var, " (C)")) +
-    xlab(x_var)
-
+    scale_x_datetime(date_breaks = "2 day",date_labels = "%e-%b") +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1)) 
 }
 #________________________________________________________
 

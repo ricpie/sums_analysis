@@ -229,3 +229,109 @@ simul_events_fun <- function(ok_cooking_events_padded){
   }
   simul_by_stove_combos
 }
+
+#for each SUM data file, get cooking events.
+event_fun <- function(i,sumsarized_filtered){
+  #Grab data from file i, and keep only the entries that are marked as cooking
+  temp <- dplyr::filter(sumsarized_filtered,file_indices == i) %>%
+    dplyr::filter(state == TRUE) %>% dplyr::filter(!duplicated(datetime)) 
+  tempALL <- dplyr::filter(sumsarized_filtered,file_indices == i) 
+  
+  qc_temp <- "ok" #Default to ok data quality, gets demoted based on later checks.
+  
+  #Organize/check/fix datetimes of sum placements and removals. If there is a start and end time available for the monitoring period, use it to keep the data from the file.  Disregard this if the datetime_removal is NA, since it means we don't have a fixed known end date.  In this case we assume the end of the file is the end of the monitoring preiod and keep all the data from the given file.  Provide the start and end date in the event-building loop below.
+  min_time_file = as.POSIXct(min(tempALL$datetime))
+  max_time_file = as.POSIXct(max(tempALL$datetime))
+  if ( metadata_date_ignore == 1) {   #datetime_placed is changed to the local file value if it is below the start_date_range, and datetime_placed is too, according to the end_date_range
+    datetime_placed_temp = as.POSIXct(min_time_file)
+    datetime_removal_temp = as.POSIXct(max_time_file) 
+    qc_temp <- "ok" #These get filtered out, assuming it represents poorly time formatted data.
+  }  else if ((max_time_file>end_date_range | min_time_file<start_date_range)) {   #datetime_placed is changed to the local file value if it is below the start_date_range, and datetime_placed is too, according to the end_date_range
+      datetime_placed_temp = as.POSIXct(min_time_file)
+      datetime_removal_temp = as.POSIXct(max_time_file) 
+      qc_temp <- "out_of_placement_range" #These get filtered out, assuming it represents poorly time formatted data.
+  } else if (is.na(as.POSIXct(temp$datetime_removal[1])) | is.na(as.POSIXct(temp$datetime_placed[1]))){  #If date is NA, use the file's dates.  They have already been midnight-trimmed in the load_data.r function.
+    datetime_placed_temp = as.POSIXct(min_time_file)
+    datetime_removal_temp = as.POSIXct(max_time_file)
+    qc_temp <- "NA_metadata"
+  } else if (min_time_file> as.POSIXct(temp$datetime_placed[1])) {  #If placement time is before time of first data point, switch to first data point.
+    datetime_placed_temp = as.POSIXct(min_time_file)
+    datetime_removal_temp = as.POSIXct(max_time_file)
+    qc_temp <- "placement_before_data"
+  } else if (as.POSIXct(min(temp$datetime_placed))> as.POSIXct(max(temp$datetime_removal))) {  #If placement time is greater than the datetime placed, switch them, it's a mistake.
+    datetime_placed_temp = as.POSIXct(min_time_file)
+    datetime_removal_temp = as.POSIXct(max_time_file)
+    qc_temp <- "placement_greaterthan_removal"
+  } else { #If not NA, a value must have been found in the meta data, use it.
+    datetime_placed_temp = as.POSIXct(min(temp$datetime_placed))
+    datetime_removal_temp = as.POSIXct(max(temp$datetime_removal))
+    qc_temp <- "metadata_dates_used"
+  }      
+  
+  #Separate case to handle data from SUMs placed before start_date_range (possible deployment start date)
+  if (min_time_file<start_date_range) {  
+    datetime_placed_temp = as.POSIXct(start_date_range)
+    qc_temp <- "out_of_placement_range" #These get filtered out, assuming it represents poorly time formatted data.
+  }
+  if (max_time_file>end_date_range) {  
+    datetime_removal_temp = as.POSIXct(end_date_range) 
+    qc_temp <- "out_of_placement_range" #These get filtered out, assuming it represents poorly time formatted data.
+  }
+  
+  
+  #Put cooking events into a single table.
+  if (dim(temp)[1]>1 && any(temp$state==TRUE)) {
+    
+    time_difference <- as.numeric(difftime(temp$datetime,lag(temp$datetime),units="mins"))
+    time_difference <- time_difference[!is.na(time_difference)] #
+    
+    breakstart <- c(0,which((time_difference>cooking_group) == TRUE))+1 #Start of a cooking event
+    breakend <- c(which((time_difference>cooking_group) == TRUE),
+                  if (tail(temp$state,n=1) == TRUE){dim(temp)[1]}) #End of cooking event. 
+    #Tail part is in case the time series ends while still cooking...need to account for th
+    
+    
+    #Add cooking events to the cooking_events data frame.
+    cooking_events <- rbind(cooking_events,
+                            data.frame(start_time= as.POSIXct(temp$datetime[breakstart]),
+                                       end_time=as.POSIXct(temp$datetime[breakend]), 
+                                       group=as.factor(temp$group[breakstart]),
+                                       region=as.factor(temp$region[breakstart]),
+                                       HHID=as.factor(temp$HHID[breakstart]),
+                                       logger_id=factor(temp$logger_id[breakstart]),
+                                       stove=factor(temp$stove[breakstart]),
+                                       logging_duration_days = as.numeric(difftime(datetime_removal_temp,datetime_placed_temp,units = "days")),
+                                       datetime_placed = datetime_placed_temp,
+                                       datetime_removal = datetime_removal_temp,
+                                       file_indices = temp$file_indices[breakstart], 
+                                       filename = temp$filename[breakstart],
+                                       fullsumsarizer_filename = temp$fullsumsarizer_filename[breakstart],
+                                       comments = temp$comments[1],
+                                       use_flag=as.logical(rep(1,length(breakstart)[1])),
+                                       qc_dates = qc_temp))
+  } else{
+    #If no cooking events are found, still create an entry, though with the use flag as FALSE, so 
+    #that we know that there was data collected and zero events in that period.  Set the use_flag to true here to differntiate from the too-short cooking events.
+    
+    temp <- dplyr::filter(sumsarized_filtered,file_indices == i)  #Create new temp here so 
+    #we can get info about the sample that does not have cooking events.
+    cooking_events <- rbind(cooking_events,
+                            data.frame(start_time=as.POSIXct(temp$datetime[1]),
+                                       end_time=as.POSIXct(temp$datetime[1]), 
+                                       group=as.factor(temp$group[1]),
+                                       region=as.factor(temp$region[1]),
+                                       HHID=as.factor(temp$HHID[1]), 
+                                       logger_id=factor(temp$logger_id[1]),
+                                       stove=factor(temp$stove[1]), 
+                                       logging_duration_days = as.numeric(difftime(datetime_removal_temp,datetime_placed_temp,units = "days")),
+                                       datetime_placed = datetime_placed_temp,
+                                       datetime_removal = datetime_removal_temp,
+                                       file_indices = temp$file_indices[1], 
+                                       filename = temp$filename[1],
+                                       fullsumsarizer_filename = temp$fullsumsarizer_filename[1],
+                                       comments = temp$comments[1],
+                                       qc_dates = qc_temp,
+                                       use_flag=FALSE))
+  }
+  return(cooking_events)
+}

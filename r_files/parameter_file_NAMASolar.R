@@ -6,10 +6,10 @@ path_tracking_sheet_json <- "~/Dropbox/Peru 2019 NAMA Internal/Analysis/SUMS Tra
 project_name <- "NAMA Piloto Solar"
 
 #Text associating a given stove code with the full name to use in figures.
-stove_codes <- data.frame(stove = as.factor(c("Solar","Tradicional","Tradicional","Mejorada","Ventilador","GLP","Carbon",
+stove_codes <- data.frame(stove = as.factor(c("Solar","Tradicional","Ventilador","GLP","Carbon",
                                               "stove_type:solar","stove_type:tradicional-fogon","stove_type:tradicional-lowtemp",
                                               "Mejorada","stove_type:ventilador","stove_type:GLP","stove_type:Carbon","stove_type:tradicional-secundaria","Tradicional2")),
-                          stove_descriptions = as.factor(c("Solar","Tradicional","Tradicional","Mejorada","Ventilador","GLP","Carbon","Solar","Tradicional","Tradicional","Mejorada","Ventilador","GLP","Carbon","Tradicional2","Tradicional")))
+                          stove_descriptions = as.factor(c("Solar","Tradicional","Ventilador","GLP","Carbon","Solar","Tradicional","Tradicional","Mejorada","Ventilador","GLP","Carbon","Tradicional2","Tradicional")))
 
 stove_group_codes <- data.frame(group = as.factor(c("stove_type:ventilador","stove_type:solar","control","Ventilador","Solar","Control")),  #Use these if there are different study arms.
                                 stove_groups = as.factor(c("Ventilador","Solar","Control","Ventilador","Solar","Control"))) #group variable in filter_sumsarized.R
@@ -21,7 +21,7 @@ campaign_name = "Piloto Solar y Ventilador"
 
 
 cooking_group <- 40 # x minute window for grouping events together.
-cooking_duration_minimum <- 9  #Minutes
+cooking_duration_minimum <- 1  #Minutes
 cooking_duration_maximum <- 1440 #Minutes
 logging_duration_minimum <- 1 #days.  Single file duration must be this long to be included in the analysis.
 #If set to zero, it will not trim out any data, instead leaving the complete data sets available for analysis.  Trimming is done
