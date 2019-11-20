@@ -16,7 +16,7 @@ files_plot <- tk_choose.files(default = "", caption = "Select files",
                               multi = TRUE, filters = matrix(c("SUMs files",".csv"),1, 2, byrow = TRUE), index = 1)
 
 
-l_ply(files_plot, fileCleanerTimeStamp, .progress='text') #Fix timestamps and headers if necessary.
+l_ply(files_plot, fileCleanerTimeStamp, .progress='text',.parallel = TRUE) #Fix timestamps and headers if necessary.
 
 #l_ply(files_plot, fileFlip, .progress='text')#File may have timestamp flipped...this reverses it.
 

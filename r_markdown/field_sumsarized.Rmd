@@ -129,7 +129,9 @@ print(files_without_hhid)
 files_without_metadata <- unique(dplyr::filter(sumsarized_filtered,is.na(stove_descriptions)) %>% dplyr::select(fullsumsarizer_filename))   #Note the name of files for which there is there is no matching filename in the tracking sheet, ergo no metadata from the tracking sheet. Not currently being filtered out, but this should be attended to by fixing any data files/tracking entries that appear in this variable.  Make sure that the actual file name matches what is listed in the tracking sheet.  Files names should also be unique.
 print(files_without_metadata)
 
-filtered_files <- unique(dplyr::filter(sumsarized_filtered,grepl("ok",qc)) %>% dplyr::select(fullsumsarizer_filename))   #Note the name of files for which there is there is no matching filename in the tracking sheet, ergo no metadata from the tracking sheet. Not currently being filtered out, but this should be attended to by fixing any data files/tracking entries that appear in this variable.  Make sure that the actual file name matches what is listed in the tracking sheet.  Files names should also be unique.
+filtered_files <- unique(dplyr::filter(sumsarized_filtered,grepl("ok",qc)) %>% dplyr::select(fullsumsarizer_filename))   
+print(filtered_files)
+#Note the name of files for which there is there is no matching filename in the tracking sheet, ergo no metadata from the tracking sheet. Not currently being filtered out, but this should be attended to by fixing any data files/tracking entries that appear in this variable.  Make sure that the actual file name matches what is listed in the tracking sheet.  Files names should also be unique.
 ```
 
 
@@ -225,11 +227,14 @@ ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,duration_minutes
   dplyr::filter(grepl("ok",qc)) %>% #Keep only data marked 'ok'
   droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
 
-#Get list of files removed, and reasons why:
-not_ok_cooking_events <- dplyr::filter(ok_cooking_events_unfiltered,!grepl("ok",qc)) %>% #Keep only data marked NOT 'ok'
-  droplevels() #Getting rid of extra levels whos data was filtered out, so unique doesn't freak out.
+#Get list of files removed:
+removed_files <- setdiff(unique(ok_cooking_events_padded$filename),unique(ok_cooking_events_unfiltered$filename))
+print(removed_files)
 
-list_of_files_with_bad_events <-  dplyr::mutate(not_ok_cooking_events,logging_duration_days = as.character(sprintf("%0.2f", round(logging_duration_days, digits = 2)  ))) %>%
+#List of files with non-ok qc tags, and their unique errors.
+list_of_files_with_bad_events <- dplyr::filter(ok_cooking_events_unfiltered,!grepl("ok",qc)) %>% #Keep only data marked NOT 'ok'
+  droplevels() %>% 
+  dplyr::mutate(logging_duration_days = as.character(sprintf("%0.2f", round(logging_duration_days, digits = 2)  ))) %>%
   dplyr::select(fullsumsarizer_filename,start_time,qc,HHID,logging_duration_days,datetime_placed,stove_descriptions) %>%
   dplyr::distinct(fullsumsarizer_filename,qc, .keep_all = TRUE)
 kable(list_of_files_with_bad_events) #Plot the list of bad files so we can look at them and re-analyze after correcting any mistakes.
@@ -238,7 +243,6 @@ kable(list_of_files_with_bad_events) #Plot the list of bad files so we can look 
 #dplyr::mutate(qc = if_else(logging_duration_days < total_days_logged_minimum,"short_total_logging_duration",qc)) %>% # Only keep data from house-stove combos with more than this number of days of data.
 
 ```
-
 
 
 # Summarize data
@@ -355,7 +359,6 @@ stats_grouped_by_hhid_stove_month <- dplyr::group_by(ok_cooking_events_padded,st
                    days_logged_per_group_by_stove=sum(length(unique(day_month_year)), na.rm = TRUE))
 kable(stats_grouped_by_hhid_stove_month, digits=2)
 
-
 #Calculate summary for the overall groups and stoves from the household-wise results above. 
 stats_by_stove_group_month <- dplyr::group_by(stats_grouped_by_hhid_stove_month,stove_descriptions,group,month_year) %>%
   dplyr::summarise(mean_events_per_day=mean(events_per_day, na.rm = TRUE),
@@ -449,8 +452,6 @@ g111<- dplyr::group_by(ok_cooking_events_padded, stove_descriptions, day_month_y
   theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
   theme(legend.title = element_blank())
 g111
-##ggsave(filename="../figures/UsesPerDayDistribution_byGrouppadded.png", plot=g111,width = 6, height = 4)
-
 
 #Plot Eventos por dia en promedio for all groups together
 g2 <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
@@ -467,8 +468,6 @@ g2 <- dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
   theme(axis.text.x = element_text(angle = 60, hjust = 1)) 
 g2
 #ggsave(filename="../figures/AverageUsesPerDay_All.png", plot=g2,width = 6, height = 4)
-
-
 
 #Plot average minutes used per day for each stove-household combination
 g3<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%

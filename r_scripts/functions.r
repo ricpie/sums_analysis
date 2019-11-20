@@ -338,6 +338,7 @@ event_fun <- function(i,sumsarized_filtered){
 
 #Pad the data set to ensure that files without events are taken into account, and that days without events are properly accounted for in analyses.
 pad_fun <- function(i,ok_cooking_events_unfiltered){
+  uniquers <- unique(ok_cooking_events_unfiltered$fullsumsarizer_filename)
   temp <- dplyr::filter(ok_cooking_events_unfiltered,uniquers[i]==fullsumsarizer_filename) %>%
     dplyr::arrange(start_time)
   

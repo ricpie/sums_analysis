@@ -154,13 +154,18 @@ ttestplot2community
 # Use cooking events (ok_cooking_events_padded), and KPT data to get cooking events/times with each stove during KPT periods.  
 # Merge ok_cooking_events_padded with KPT data using HHID as keys.  Group by HHID. Flag data between start time and 3 days-post.
 kpt_start <- dplyr::mutate(kpt_data_all,startdatetime=as.POSIXct(paste(Startdate, substr(Starttime,1,8)), format="%Y-%m-%d %H:%M:%S")) %>%
-  dplyr::select(HHID,startdatetime) %>%
+  dplyr::select(HHID,startdatetime,`AverageBiomassKG/day/SA`,RegionName) %>%
   dplyr::mutate(enddatetime = startdatetime + 3*86400)
 
+
 cooking_kpt <- dplyr::left_join(dplyr::mutate(ok_cooking_events_padded,HHID = as.numeric(HHID)),kpt_start,by='HHID')  %>%
-  dplyr::filter(!is.na(startdatetime))
+  dplyr::filter(!is.na(startdatetime)) %>% # Remove rows that don't have start time (ie. no HHID match was found)
+  dplyr::mutate(during_kpt_flag = if_else(start_time>startdatetime & start_time<enddatetime,TRUE,FALSE)) #Keep events within start and end time of KPTs
 
 # Compare the behaviors with the average use from the rest of the time.
+
+
+# Compare fuel consumption with minutes cooking with the stoves
 
 
 

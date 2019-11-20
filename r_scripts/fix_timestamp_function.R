@@ -116,37 +116,28 @@ fileCleanerTimeStamp <- function(filerun){
   newfilename = paste(dirname(filerun),'/Corrected Timestamps/',basename(filerun),sep="")
   if ((dashpresence) & (colonpresence==1) & DT1dash>DT2dash) { #D-M-Y hh:mm
     datas[,Date.Time:=dmy_hm(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=newfilename)
+    
   } else if ((dashpresence) & (colonpresence==2) & DT1dash>DT2dash) {  #D-M-Y hh:mm:ss
     datas[,Date.Time:=dmy_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), newfilename)
   } else if ((dashpresence) & (colonpresence==1) & DT3dash>DT2dash) {  #Y-m-d hh:mm
     datas[,Date.Time:=ymd_hm(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file = newfilename)
   } else if ((dashpresence) & (colonpresence==2) & DT3dash>DT2dash)  {  #y-m-d hh:mm:ss
     datas[,Date.Time:=ymd_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=newfilename)
-
   } else if ((slashpresence) & (colonpresence==2) & DT1slash>=DT2slash)  {  #D/M/Y hh:mm:ss
     datas[,Date.Time:=dmy_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=newfilename)
-
   } else if ((slashpresence) & (colonpresence==1) & DT1slash>=DT2slash)  {  #D/M/Y hh:mm
     datas[,Date.Time:=dmy_hm(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=newfilename)
-    
   } else if ((slashpresence) & (colonpresence==1) & DT2slash>DT1slash)  {  #M/D/Y hh:mm
     datas[,Date.Time:=mdy_hm(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=newfilename)
-
   } else if ((slashpresence) & (colonpresence==2) & DT2slash>DT1slash)  {  #M/D/Y hh:mm:ss
     datas[,Date.Time:=mdy_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=newfilename)
   } else  {
     datas[,Date.Time:=mdy_hms(as.character(Date.Time))]
-    cat(paste(header$V1, collapse="\n"), file=newfilename)
   }
+  headerrows <- data.frame(asd=matrix("", nrow = 19, ncol = 1))
   
+  cat(paste(header$V1,headerrows$asd,headerrows$asd,sep=",",collapse="\n"), file=newfilename)
+   cat("\n", sep=",", file=newfilename,append=TRUE)
   # if there are a bunch of bad dates still, try to fix the rest.
   if(sum(is.na(datas$Date.Time))>100){
     a <- datas$Date.Time

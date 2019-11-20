@@ -20,7 +20,7 @@ load_sumsarized <- function(substitution_list){
   names(sub_list ) <- substitution_list
   sub_list <- as.list(sub_list, use.names=FALSE)
   
- sumsarized <- lapply(list.files(paste0("../../SUMSARIZED", collapse=NULL),
+ sumsarized <- ldply(list.files(paste0("../../SUMSARIZED", collapse=NULL),
                     pattern = ".csv",
                     full.names = TRUE,recursive = TRUE),
          function(x)
@@ -41,9 +41,8 @@ load_sumsarized <- function(substitution_list){
           dplyr::mutate(filename = x) %>%
           dplyr::mutate(day_month_year = as.Date(datetime)) %>%
           dplyr::filter(day_month_year > min(day_month_year) & day_month_year < max(day_month_year)) #Remove data from the first and last days in the data file (the install and removal file)
-         
-  ) %>%
-    dplyr::bind_rows() 
+  ,.parallel = TRUE) 
+ 
  
  sumsarized_lazy = lazy_dt(sumsarized)
     # convert time to secs in day and fix file problems
