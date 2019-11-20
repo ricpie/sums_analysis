@@ -146,6 +146,7 @@ fileCleanerTimeStamp <- function(filerun){
     datas$Date.Time <- a # Put it back in your dataframe
   }
   datas[,Date.TimeBackup:=NULL]
+  datas <- datas[complete.cases(datas), ]
   
   write.table(datas, newfilename, sep=",", append=TRUE, row.names=F, quote=F)
   
