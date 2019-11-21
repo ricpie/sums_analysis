@@ -471,8 +471,8 @@ g2
 
 #Plot average minutes used per day for each stove-household combination
 g3<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID,group) %>%
-  dplyr::summarise(avg_events_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>%
-  ggplot(aes(x=stove_descriptions, y = avg_events_per_day)) +
+  dplyr::summarise(avg_minutes_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>%
+  ggplot(aes(x=stove_descriptions, y = avg_minutes_per_day)) +
   stat_summary(fun.data = f, geom="boxplot") +   
   geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
   stat_summary(fun.y=mean, colour="blue", geom="point", 
@@ -487,8 +487,8 @@ g3
 
 #Plot average minutes used per day for each stove-household combination
 g33<-  dplyr::group_by(ok_cooking_events_padded,stove_descriptions,HHID) %>%
-  dplyr::summarise(avg_events_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>%
-  ggplot(aes(x=stove_descriptions, y = avg_events_per_day)) +
+  dplyr::summarise(avg_minutes_per_day=sum(duration_minutes,na.rm=TRUE)/length(unique(day_month_year))) %>%
+  ggplot(aes(x=stove_descriptions, y = avg_minutes_per_day)) +
   stat_summary(fun.data = f, geom="boxplot") +   
   geom_jitter(height = 0,width = 0.2,alpha = 0.25) +
   stat_summary(fun.y=mean, colour="blue", geom="point", 

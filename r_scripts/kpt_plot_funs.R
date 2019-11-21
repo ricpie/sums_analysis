@@ -1,8 +1,8 @@
 
 give.mean_minutes_kg <- function(x){
-  return(c(y =mean(x)+2, label = round(mean(x),digits=2)))}
+  return(c(y =mean(x)+2, label = round(mean(x),digits=1)))}
 give.mean_minutes_LPG <- function(x){
-  return(c(y =mean(x)+0.25, label = round(mean(x),digits=2)))}
+  return(c(y =mean(x)+0.25, label = round(mean(x),digits=1)))}
 give.mean_minutes_energia <- function(x){
   return(c(y =mean(x)+10, label = round(mean(x),digits=1)))}
 #To make box and whiskers quantiles rather than IQRs.
@@ -18,7 +18,7 @@ kpt_plot_twovar <- function(df, x_var, y_var , facet_var1 , facet_var2 , plot_ti
     stat_summary(fun.data = f, geom="boxplot") +   
     geom_jitter(height = 0,width = 0.1,alpha = 0.25) +
     stat_summary(fun.y=mean, colour="blue", geom="point", shape=18, size=4.5,alpha = 0.5)+
-    stat_summary(fun.data = giver, geom = "text",colour="blue") + 
+    stat_summary(fun.data = give.mean_minutes_kg, geom = "text",colour="blue") + 
     labs(title= plot_title,y=ylabel,x=xlabel) + stat_summary(fun.data = give.n, geom = "text") + 
     scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
     theme(axis.text.x = element_text(angle = 60, hjust = 1,size=8), axis.title=element_text(size=9)) + 
