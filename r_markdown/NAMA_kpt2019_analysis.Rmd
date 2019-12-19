@@ -48,18 +48,20 @@ all_plots <- function(kpt_data_all){
   
   #Box plot of KPT results, by region, and community, and by stove type, per capita
   region_CO2e_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="group", y_var = "`AnnualCO2eemissionsperSA[tons/year/SA]`", facet_var1 = "RegionName",  plot_title="", xlabel="",ylabel = "Emisiones CO2e [t/año/SA]", give.mean_minutes_kg); print(region_CO2e_SAplot)
-      
+  
   region_MJ_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="group", y_var = "`AverageMJ/day/SA`", facet_var1 = "RegionName", plot_title="", xlabel="",ylabel = "Consumo de energia [MJ/día/SA]",give.mean_minutes_energia); print(region_MJ_SAplot)
- 
-      
+  
+  
   region_biomasskg_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="`group`", y_var = "`AverageBiomassKG/day/SA`", facet_var1 = "RegionName", plot_title="", xlabel="",ylabel = "Consumo de biomasa [kg/día/SA]",give.mean_minutes_kg);print(region_biomasskg_SAplot)
-         
-  region_LPG_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="group", y_var = "`AverageLPGMJ/day/SA`", facet_var1 = "RegionName", plot_title="", xlabel="",ylabel = "Energia de GLP por día por adulto estándar [MJ/día/SA]" ,give.mean_minutes_kg); print(region_LPG_SAplot)
-
+  
+  region_LPG_SAplot <- kpt_plot_onevar(kpt_data_all, x_var="group", y_var = "`AverageLPGMJ/day/SA`", facet_var1 = "RegionName", plot_title="", xlabel="",ylabel = "Energia de GLP por día por adulto estándar [MJ/día/SA]" ,give.mean_minutes_LPG); print(region_LPG_SAplot)
+  
   #Box plot of KPT results, countrywide, and by stove type.
   national_CO2e_SAplot <- kpt_plot_group(kpt_data_all, x_var="`group`", y_var = "`AnnualCO2eemissionsperSA[tons/year/SA]`",  plot_title="", xlabel="",ylabel = " Emisiones CO2e por año por adulto estandar [t/año/SA]",give.mean_minutes_kg);print(national_CO2e_SAplot)
   
   national_MJ_SAplot <- kpt_plot_group(kpt_data_all, x_var="`group`", y_var = "`AverageMJ/day/SA`",  plot_title="", xlabel="",ylabel = "Consumo de energia por día por adulto estándar [MJ/día/SA]",giver=give.mean_minutes_energia ); print(national_MJ_SAplot)
+  
+  national_kg_SAplot <- kpt_plot_group(kpt_data_all, x_var="`group`", y_var = "`AverageBiomassKG/day/SA`",  plot_title="", xlabel="",ylabel = "Consumo de biomasa [kg/día/SA]", giver=give.mean_minutes_kg ); print(national_kg_SAplot)
   
   #Stove used more less or same as typical, day 1
   kpt_MoreLess = melt(kpt_data_all,id=c("HHID","group"),
@@ -133,11 +135,11 @@ ttestplot4
 # City level plots
 ```{r ttestplots_citylevel,echo=TRUE,fig.width=7, fig.height=10}
 region_community_MJ_SAplot <- kpt_plot_twovar(kpt_data_all, x_var="group", y_var = "`AverageMJ/day/SA`", facet_var1 = "RegionName", facet_var2 = "`CENTRO POBLADO`", plot_title="", xlabel="",ylabel = "Consumo de energia [MJ/día/SA]",give.mean_minutes_kg ); print(region_community_MJ_SAplot)
-  
-      region_community_CO2e_SAplot <- kpt_plot_twovar(kpt_data_all, x_var="group", y_var = "`AnnualCO2eemissionsperSA[tons/year/SA]`", facet_var1 = "RegionName", facet_var2 = "`CENTRO POBLADO`", plot_title="", xlabel="",ylabel = "Emisiones CO2e [t/año/SA]",give.mean_minutes_kg ); print(region_community_CO2e_SAplot)
-      
-      region_community_biomasskg_SAplot <- kpt_plot_twovar(kpt_data_all, x_var="group", y_var = "`AverageBiomassKG/day/SA`", facet_var1 = "RegionName", facet_var2 = "`CENTRO POBLADO`", plot_title="", xlabel="",ylabel = "Consumo de biomasa [kg/día/SA]",give.mean_minutes_kg ); print(region_community_biomasskg_SAplot)
-    
+
+region_community_CO2e_SAplot <- kpt_plot_twovar(kpt_data_all, x_var="group", y_var = "`AnnualCO2eemissionsperSA[tons/year/SA]`", facet_var1 = "RegionName", facet_var2 = "`CENTRO POBLADO`", plot_title="", xlabel="",ylabel = "Emisiones CO2e [t/año/SA]",give.mean_minutes_kg ); print(region_community_CO2e_SAplot)
+
+region_community_biomasskg_SAplot <- kpt_plot_twovar(kpt_data_all, x_var="group", y_var = "`AverageBiomassKG/day/SA`", facet_var1 = "RegionName", facet_var2 = "`CENTRO POBLADO`", plot_title="", xlabel="",ylabel = "Consumo de biomasa [kg/día/SA]",give.mean_minutes_kg ); print(region_community_biomasskg_SAplot)
+
 ttestplot2community <-  ggplot(kpt_data_all,aes_string(x="group", y = "`AnnualCO2eemissionsperSA[tons/year/SA]`")) +
   stat_summary(fun.data = f, geom="boxplot") +   
   geom_jitter(height = 0,width = 0.1,alpha = 0.25) +
@@ -150,18 +152,19 @@ ttestplot2community
 ```
 
 # KPT-SUMs comparison plots
-```{r kpt_sums_comparison,echo=TRUE,fig.width=7, fig.height=4}
+```{r kpt_sums_comparison,echo=TRUE,fig.width=7, fig.height=5}
 # Use cooking events (ok_cooking_events_padded), and KPT data to get cooking events/times with each stove during KPT periods.  
 
 # Grab some variables from kpt data, and format the startdatetime and get the enddatetime
-kpt_start <- dplyr::mutate(kpt_data_all,startdatetime=as.POSIXct(paste(Startdate, substr(Starttime,1,8)), format="%Y-%m-%d %H:%M:%S")) %>%
-  dplyr::select(HHID,startdatetime,`AverageBiomassKG/day/SA`,RegionName,group) %>%
-  dplyr::mutate(enddatetime = startdatetime + 3*86400)
+kpt_start <- dplyr::mutate(kpt_data_all,kptstartdatetime=as.POSIXct(paste(Startdate, substr(Starttime,1,8)), format="%Y-%m-%d %H:%M:%S")) %>%
+  dplyr::select(HHID,kptstartdatetime,`AverageBiomassKG/day/SA`,RegionName,group) %>%
+  dplyr::mutate(kptenddatetime = kptstartdatetime + 3*86400)
 
 # Merge ok_cooking_events_padded with KPT data using HHID as keys. group by HHID. Flag data between start time and 3 days-post.
 cooking_kpt <- dplyr::left_join(dplyr::mutate(ok_cooking_events_padded,HHID = as.numeric(HHID)),kpt_start,by='HHID')  %>%
-  dplyr::filter(!is.na(startdatetime)) %>% # Remove rows that don't have start time (ie. no HHID match was found)
-  dplyr::mutate(during_kpt_flag = if_else(start_time>startdatetime & start_time<enddatetime,'DuranteKPT','NoDuranteKPT')) #Keep events within start and end time of KPTs
+  dplyr::filter(!is.na(kptstartdatetime)) %>% # Remove rows that don't have start time (ie. no HHID match was found)
+  dplyr::mutate(during_kpt_flag = if_else(start_time<kptstartdatetime ,'Antes_de_KPT',
+                                          if_else(start_time>kptenddatetime,'Despues_de_KPT','Durante_KPT'))) #Keep events within start and end time of KPTs
 
 # Compare the behaviors with the average use from the rest of the time.  In a few cases it appears the team downloaded the data before starting the KPT.  We can make better comparisons after the next data download
 representativeness <-   dplyr::group_by(cooking_kpt,stove_descriptions,HHID,group.x,during_kpt_flag) %>%
@@ -172,7 +175,7 @@ representativeness <-   dplyr::group_by(cooking_kpt,stove_descriptions,HHID,grou
   stat_summary(fun.y=mean, colour="blue", geom="point", 
                shape=18, size=4.5,alpha = 0.5)+
   stat_summary(fun.data = give.mean_minutes_energia, geom = "text",colour="blue") + 
-  facet_wrap(group.x~stove_descriptions,labeller = labeller(facet_var = label_wrap_gen(width = 15))) +
+  facet_grid(group.x~stove_descriptions,labeller = labeller(facet_var = label_wrap_gen(width = 15))) +
   stat_compare_means(method = "t.test") +
   labs(y="Minutes used per day",x="") + 
   stat_summary(fun.data = give.n, geom = "text") + 

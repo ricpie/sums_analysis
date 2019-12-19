@@ -1,10 +1,10 @@
 
 give.mean_minutes_kg <- function(x){
-  return(c(y =mean(x)+2, label = round(mean(x),digits=1)))}
+  return(c(y =mean(x)+2, label = round(mean(x),digits=2)))}
 give.mean_minutes_LPG <- function(x){
-  return(c(y =mean(x)+0.25, label = round(mean(x),digits=1)))}
-give.mean_minutes_energia <- function(x){
   return(c(y =mean(x)+10, label = round(mean(x),digits=1)))}
+give.mean_minutes_energia <- function(x){
+  return(c(y =mean(x)+30, label = round(mean(x),digits=1)))}
 #To make box and whiskers quantiles rather than IQRs.
 f <- function(x) {
   r <- quantile(x, probs = c(0.05, 0.25, 0.5, 0.75, 0.95))

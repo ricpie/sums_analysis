@@ -13,9 +13,9 @@ field_timeseries_plot <- function(df, y_var, x_var, facet_var,color_var, marker_
     facet_wrap(~df[[facet_var]], ncol = 1, scales = "free") +
     theme_minimal() +
     theme(legend.position = "top") +
-    ylab(paste0(y_var, " (C)")) +
+    labs(y=bquote(''~C^o), x="") +
     scale_x_datetime(date_breaks = "2 day",date_labels = "%e-%b") +
-    theme(axis.text.x = element_text(angle = 30, hjust = 1)) 
+    theme(axis.text.x = element_text(angle = 30, hjust = 1,size=10)) 
 }
 #________________________________________________________
 

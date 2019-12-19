@@ -14,61 +14,54 @@ library(gsubfn)
 # Load files of Sumsarizer output for the thermocouple data analyzed by RP
 load_sumsarized <- function(substitution_list){
   
-  # substitution_list <- stove_codes$stove
+  substitution_list <- stove_codes$stove
   substitution_list <- str_replace_all(substitution_list, "[[:punct:]]", "")
   sub_list <- paste0("_",as.character(substitution_list)) #Create list for replacement
   names(sub_list ) <- substitution_list
   sub_list <- as.list(sub_list, use.names=FALSE)
   
- sumsarized <- ldply(list.files(paste0("../../SUMSARIZED", collapse=NULL),
-                    pattern = ".csv",
-                    full.names = TRUE,recursive = TRUE),
-         function(x)
-         readr::read_csv(x, 
-                           skip = 1,
-                           col_names = c("sumsarizer_filename", "datetime", "stove_temp", "state","datapoint_id","dataset_id"),
-                           col_types = 
-                             cols(
-                               sumsarizer_filename = col_character(),
-                               datetime = col_character(),
-                               stove_temp = col_double(),
-                               state = col_logical(),
-                               datapoint_id = col_character(),
-                               dataset_id = col_character()
-                             ),
-                           na = c("", "NA")
-           ) %>%
-          dplyr::mutate(filename = x) %>%
-          dplyr::mutate(day_month_year = as.Date(datetime)) %>%
-          dplyr::filter(day_month_year > min(day_month_year) & day_month_year < max(day_month_year)) #Remove data from the first and last days in the data file (the install and removal file)
-  ,.parallel = TRUE) 
- 
- 
- sumsarized_lazy = lazy_dt(sumsarized)
-    # convert time to secs in day and fix file problems
-    # dplyr::mutate(datetime = parse_date_time(gsub("/00", "/16", datetime),orders = c("y-m-d HMS", "m/d/y HMS"))) %>% #For AfDB Nigeria only.
-    #Do some file name formatting, looking for common errors, and unique ones.
-    # dplyr::mutate(sumsarizer_filename = if_else(grepl("DL4",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL4.csv", sumsarizer_filename),sumsarizer_filename)) %>% #Special case for importing DL4 and DL5, for AfDB Nigeria only.
-    # dplyr::mutate(sumsarizer_filename = if_else(grepl("DL5",sumsarizer_filename,ignore.case=TRUE),gsub(".csv", "_DL5.csv", sumsarizer_filename),sumsarizer_filename))%>% #For AfDB Nigeria only.
- unlist_slash <- function(x) {tail(unlist(gregexpr('/',x,perl=TRUE)),1)[1]}
- unlist_slash1 <- function(x) {unlist(gregexpr('/',x,perl=TRUE))[1]}
- unlist_4 <- function(x) tail(unlist(gregexpr('_',x,perl=TRUE)),4)[1]
- 
- sumsarized <- dplyr::mutate(sumsarized_lazy,fullsumsarizer_filename = sumsarizer_filename) %>%
-    dplyr::mutate(sumsarizer_filename = substring(sumsarizer_filename,
-                                       sapply(sumsarizer_filename, unlist_slash1)+1,100)) %>% #For AfDB Nigeria only.
-    # dplyr::mutate(sumsarizer_filename = gsub("KE", "_KE", sumsarizer_filename,ignore.case = TRUE)) %>% # the line below does this, but general and with the names given in the main file.
-    dplyr::mutate(sumsarizer_filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,sumsarizer_filename,ignore.case = TRUE)) %>% #Make sure the underscores are placed before the stove type.#For AfDB Nigeria only.
-    # dplyr::mutate(sumsarizer_filename = gsub(" ","_",sumsarizer_filename))  %>%#For AfDB Nigeria only.
-    dplyr::mutate(sumsarizer_filename = gsub("__","_",sumsarizer_filename)) %>%#For AfDB Nigeria only.
-    dplyr::mutate(filename = substring(filename, sapply(filename, unlist_slash)+1, 100)) %>%
-    #dplyr::mutate(filename = gsub("KE", "_KE", filename,ignore.case = TRUE)) %>%
-    dplyr::mutate(filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,filename,ignore.case = TRUE)) %>%#Make sure the underscores are placed before the stove type.
-    dplyr::mutate(filename = gsub(" ","_",filename))  %>%
-    dplyr::mutate(filename = gsub("__","_",filename)) %>%
-    dplyr::mutate(filename = if_else(lengths(regmatches(filename, gregexpr("_", filename)))>3, substring(filename, sapply(filename, unlist_4)+1, 100),filename)) #If there are more than the three expected underscores, trim from the fourth from the last.
-
- sumsarized <- as.data.frame(sumsarized)
+  asdf <- lapply(list.files(paste0("../../SUMSARIZED", collapse=NULL),
+                            pattern = ".csv",
+                            full.names = TRUE,recursive = TRUE),
+                 function(x)
+                   readr::read_csv(x,
+                                   skip = 1,
+                                   col_names = c("sumsarizer_filename", "datetime", "stove_temp", "state","datapoint_id","dataset_id"),
+                                   col_types =
+                                     cols(
+                                       sumsarizer_filename = col_character(),
+                                       datetime = col_character(),
+                                       stove_temp = col_double(),
+                                       state = col_logical(),
+                                       datapoint_id = col_character(),
+                                       dataset_id = col_character()
+                                     ),
+                                   na = c("", "NA")
+                   ) %>%
+                   dplyr::mutate(filename = x) %>%
+                   # convert time to secs in day and fix file problems
+                   # dplyr::mutate(datetime = parse_date_time(gsub("/00", "/16", datetime),orders = c("y-m-d HMS", "m/d/y HMS"))) %>% #For AfDB Nigeria only.
+                   #Do some file name formatting, looking for common errors, and unique ones.
+                   dplyr::mutate(day_month_year = as.Date(datetime)) %>%
+                   dplyr::filter(day_month_year > min(day_month_year) & day_month_year < max(day_month_year)) %>% #Remove data from the first and last days in the data file (the install and removal file)
+                   dplyr::mutate(fullsumsarizer_filename = sumsarizer_filename[1]) %>%
+                   # dplyr::mutate(sumsarizer_filename = substring(sumsarizer_filename,
+                   #                                    sapply(sumsarizer_filename, function(x) unlist(gregexpr('/',x,perl=TRUE))[1])+1,100)) %>% #For AfDB Nigeria only.
+                   # dplyr::mutate(sumsarizer_filename = gsub("KE", "_KE", sumsarizer_filename,ignore.case = TRUE)) %>% # the line below does this, but general and with the names given in the main file.
+                   dplyr::mutate(sumsarizer_filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,sumsarizer_filename[1],ignore.case = TRUE)) %>% #Make sure the underscores are placed before the stove type.#For AfDB Nigeria only.
+                   dplyr::mutate(sumsarizer_filename = gsub(" ","_",sumsarizer_filename[1]))  %>%
+                   dplyr::mutate(sumsarizer_filename = gsub("__","_",sumsarizer_filename[1])) %>%
+                   dplyr::mutate(filename = substring(filename[1], sapply(filename[1], function(x) tail(unlist(gregexpr('/',x,perl=TRUE)),1)[1])+1, 100)) %>%
+                   #dplyr::mutate(filename = gsub("KE", "_KE", filename,ignore.case = TRUE)) %>%
+                   dplyr::mutate(filename = gsubfn(paste(names(sub_list),collapse="|"), sub_list,filename[1],ignore.case = TRUE)) %>%#Make sure the underscores are placed before the stove type.
+                   dplyr::mutate(filename = gsub(" ","_",filename[1]))  %>%
+                   dplyr::mutate(filename = gsub("__","_",filename[1])) %>%
+                   dplyr::mutate(filename = if_else(lengths(regmatches(filename[1], gregexpr("_", filename[1])))>3, substring(filename[1], 
+                                                                                                                              sapply(filename[1], function(x) tail(unlist(gregexpr('_',x,perl=TRUE)),4)[1])+1, 100),filename[1]))#If there are more than the three expected underscores, trim from the fourth from the last.
+                 
+  ) %>%
+    dplyr::bind_rows() 
+  
  
 }
 
