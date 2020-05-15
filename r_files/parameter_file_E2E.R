@@ -5,10 +5,10 @@ path_tracking_sheet_json <- NA #"~/Dropbox/Peru 2019 NAMA Internal/Analysis/SUMS
 
 project_name <- "Kenya E2E"
 
-stove_codes <- data.frame(stove = as.factor(c("stove_type:lpg","stove_type:traditional_manufactured","stove_type:traditional_non_manufactured","stove_type:kerosene",
-                                                    "stove_type:electric","stove_type:microwave","stove_type:other","stove_type:tsf","stove_type:charcoal jiko","stove_type:charcoal_jiko")),  #Use these if there are different study arms.
-                          stove_descriptions = as.factor(c("lpg","traditional_manufactured","traditional_non_manufactured","kerosene",
-                                                           "electric","microwave","other","3-stone fire","charcoal jiko","charcoal jiko"))) #group variable in filter_sumsarized.R
+stove_codes <- data.frame(stove = as.factor(c("lpg","traditional_manufactured","traditional_non_manufactured","kerosene",
+                                                    "electric","microwave","other","tsf","charcoal jiko","charcoal_jiko")),  #Use these if there are different study arms.
+                          stove_descriptions = as.factor(c("lpg","trad-manufactured","trad-non-manufactured","kerosene",
+                                                           "electric","microwave","other","3-stone-fire","char-jiko","char-jiko"))) #group variable in filter_sumsarized.R
 
 stove_group_codes <- data.frame(group = as.factor(c("group:lpg","group:biomass")),  #Use these if there are different study arms.
                                 stove_groups = as.factor(c("lpg","biomass"))) #group variable in filter_sumsarized.R
@@ -39,7 +39,7 @@ bad_files <- paste(c("Excl","|AMB","|Eliminar","|Pre_Pilot-04_TMS_DL-01"
                      ,"|Pre_Pilot-04_TMS_DL-01","|AMB"),collapse="")
 
 # Exclude data from the following households from the entire analysis. e.g.SHO_03 is removed
-HHID_remove <- paste(c("^SHO_03$","|^SHO_04$","|^MUS_01$","|^AMB$"),collapse="")
+HHID_remove <- paste(c("^SHO_03$","|^SHO_04$","|^NA$","|^MUS_01$","|^AMB$"),collapse="")
 
 
 

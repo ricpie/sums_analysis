@@ -26,7 +26,7 @@ load_sumsarized <- function(substitution_list){
                  function(x)
                    readr::read_csv(x,
                                    skip = 1,
-                                   col_names = c("sumsarizer_filename", "datetime", "stove_temp", "state","datapoint_id","dataset_id"),
+                                   col_names = c("sumsarizer_filename", "datetime", "stove_temp", "state","datapoint_id","logger_id"),
                                    col_types =
                                      cols(
                                        sumsarizer_filename = col_character(),
@@ -34,7 +34,7 @@ load_sumsarized <- function(substitution_list){
                                        stove_temp = col_double(),
                                        state = col_logical(),
                                        datapoint_id = col_character(),
-                                       dataset_id = col_character()
+                                       logger_id = col_character()
                                      ),
                                    na = c("", "NA")
                    ) %>%

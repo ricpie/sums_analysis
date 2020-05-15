@@ -5,6 +5,7 @@ rm(list = ls())
 
 ###***Enter parameter file name for data to be analyzed***###
 parameter_filename <- "parameter_file_E2E.R" 
+processor ='FF_sensitive'
 
 
 # Include libraries 
@@ -16,28 +17,25 @@ stove_types <- paste(stove_codes$stove,  collapse = "|")
 stove_groups <-paste(stove_group_codes$group,collapse = "|")
 
 # The name of the unzipped folder containing the Geocene Studies export
-studies_export_folder = 'Geocene Studies Output'
+studies_export_folder = '~/Dropbox/UNOPS emissions exposure/Data/analysis-20200421/caa_dots_data'
 save_folder = 'SUMSARIZED' #Data is saved to this folder, to be consistent with past codes.
 
-dot_data_files = list.files('../Geocene Studies Output/metrics',pattern='.csv|.CSV', full.names = T,recursive = F)
+dot_data_files = list.files(paste0(studies_export_folder,'/metrics'),pattern='.csv|.CSV', full.names = T,recursive = F)
 
 # Define which files should be considered exclude raw data files from Dots
 save_path = grep(dir(paste0('../',studies_export_folder)),pattern = 'mission|Icon\r|event',inv = T,value = T)
 
 # Read in the missions and events CSVs
-missions = fread(paste('..',studies_export_folder, 'missions.csv', sep = '/'))
-events = fread(paste('..',studies_export_folder, 'events.csv', sep = '/'))
+events = fread(paste(studies_export_folder, 'events.csv', sep = '/'))
+events = events[processor_name==processor]
 events$start_time = as.POSIXct(events$start_time, "%Y-%m-%dT%H:%M:%S", tz = "UTC")
 events$stop_time = as.POSIXct(events$stop_time, "%Y-%m-%dT%H:%M:%S", tz = "UTC")
-tags = fread(paste('..',studies_export_folder, 'tags.csv', sep = '/'))
-tags$tag <- gsub( " ", "",tags$tag)
 
 substitution_list <- stove_group_codes$stove_groups
 substitution_list <- str_replace_all(substitution_list, "[[:punct:]]", "")
 sub_list <- paste0("_",as.character(substitution_list)) #Create list for replacement
 names(sub_list ) <- substitution_list
 sub_list <- as.list(sub_list, use.names=FALSE)
-
 
 
 # Define a function to read Dot raw data files
@@ -57,47 +55,39 @@ dot_data[, filename:=NULL]
 
 
 # Combine mission and tag metadata.  Parse tags. Need Stove Type, Group variable, HHID form the tags
-#Only keep data from campaign of interest
+
+make_tags = function(tags){
+  tags<-tags[grep(":", tag)]  #Keep only tags with a colon.
+  tags<-tags[str_count(tags$tag, ":")<2]  #Keep only tags with less than two colons.
+  tag_dicts = strsplit(tags$tag, ":")
+  tag_dicts = as.data.table(matrix(unlist(tag_dicts), ncol=2, byrow=TRUE))
+  names(tag_dicts) = c('tag_category','tag_value')
+  tag_dicts$tag_value <- gsub( " ", "",tag_dicts$tag_value)
+  
+  tags = cbind(tags,tag_dicts)[,c('mission_id','tag_category','tag_value')]
+  wide_tags = dcast(unique(tags,by=c('mission_id','tag_category')), mission_id ~ tag_category, value.var = 'tag_value')
+  return(wide_tags)
+}
+
+tags = make_tags(fread(paste(studies_export_folder, 'tags.csv', sep = '/')))
+
+missions = fread(paste(studies_export_folder, 'missions.csv', sep = '/'))
 missions <- missions[grepl(campaign_name,campaign,ignore.case = TRUE),]
+missions = merge(missions,tags,by='mission_id')
+missions = missions[,c("mission_id","mission_name","meter_name","meter_id","notes","campaign","creator_username",
+                       "household_id","indoors","other_people_use","other_people_use_n","shared_cooking_area","stove_type","stove_type_other")]
 
-#Get HHID - every mission will be associated with an HHID. Mission x HHID
-hhid_tags <- tags[grepl("ID:",tag,ignore.case = TRUE),]
-setnames(hhid_tags, old=c("tag"), new=c("HHID"))
-hhid_tags$HHID <- substr(hhid_tags$HHID,4,100)
-stovetype_tags <- tags[grepl(stove_types,tag,ignore.case = TRUE),]
-setnames(stovetype_tags, old=c("tag"), new=c("stove_type"))
-stovetype_hhid_tags <- merge(stovetype_tags,hhid_tags,by="mission_id")
+missions$stove_type<-mgsub::mgsub(missions$stove_type, stove_codes$stove, stove_codes$stove_descriptions)
 
-# Then get stove groups for each mission.  Not all missions will have a stove group.  Mission x stove_group
-group_tags <- tags[grepl(stove_groups,tag,ignore.case = TRUE),]
-setnames(group_tags, old=c("tag"), new=c("stove_group"))
-group_hhid_tags <- merge(group_tags,hhid_tags,by="mission_id")
-hhid_tags$region <- substr(hhid_tags$HHID,1,2)
 
-#Subset of households for which we have both stove group and HHID.  Use this as key for merging later
-#Mission x HHID and Stove_Group
-hhid_group_tags <- merge(stovetype_hhid_tags,group_hhid_tags,by="HHID")
-setnames(hhid_group_tags, old=c("mission_id.x"), new=c("mission_id"))
-
-#Mission metadata x HHID
-missionstags = merge(missions,hhid_group_tags, by = c('mission_id'))
-missionstags$region <- substr(missionstags$HHID,1,2)
-
-missionstags$stove_group<-mgsub::mgsub(missionstags$stove_group, stove_group_codes$group, stove_group_codes$stove_groups)
-missionstags$stove_type<-mgsub::mgsub(missionstags$stove_type, stove_codes$stove, stove_codes$stove_descriptions)
-missionstags$region<-mgsub::mgsub(missionstags$region, region_codes$region_code, region_codes$region)
-
-tags_all<-tags[ , .(alltags = paste(tag, collapse=",")), by = mission_id]
-missionstags = merge(missionstags, tags_all, by = c('mission_id'))
-missionstags$HHID <- missionstags$HHID
-missionstags[,filename:=paste(stove_group,HHID,stove_type,region,sep = "_")]
-missionstags[, HHID:=NULL]
-missionstags[, stove_group:=NULL]
-missionstags[, stove_type:=NULL]
+missions[,filename:=paste(shared_cooking_area,household_id,stove_type,indoors,sep = "_")]
+missions[, household_id:=NULL]
+missions[, shared_cooking_area:=NULL]
+missions[, stove_type:=NULL]
 
 
 # Combine time series data and mission+tag metadata 
-temp = merge(dot_data, as.data.table(missionstags), by = c('mission_id'))
+temp = merge(dot_data, as.data.table(missions), by = c('mission_id'))
 
 # Join the events table with the time series data into one large wide table
 temp[, helpTimestamp := timestamp]
@@ -152,7 +142,7 @@ sumsarizer_output = data.table(filename = all_data$filename,
                                value = all_data$value,
                                pred = all_data$event_kind,
                                datapoint_id = paste(all_data$processor_name,all_data$model_name,all_data$alltags),
-                               dataset_id = all_data$meter_id
+                               logger_id = all_data$logger_id
 )
 sumsarizer_output$pred[grepl('COOKING|cooking',sumsarizer_output$pred)] = TRUE
 sumsarizer_output$pred[sumsarizer_output$pred == 'COOKING'] = TRUE
