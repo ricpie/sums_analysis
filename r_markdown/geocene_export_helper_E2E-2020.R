@@ -5,13 +5,13 @@ rm(list = ls())
 
 ###***Enter parameter file name for data to be analyzed***###
 parameter_filename <- "parameter_file_E2E.R" 
-processor ='FF_sensitive'
-
+processor1 ='FF_sensitive'
+processor2 ='CAA Cooking Event Processor'
 
 # Include libraries 
-source('r_scripts/load.R')
+source('../r_scripts/load.R')
 # source('r_scripts/load_data.R')
-source(paste0('r_files/',parameter_filename)) #OG Codebase
+source(paste0('../r_files/',parameter_filename)) #OG Codebase
 
 stove_types <- paste(stove_codes$stove,  collapse = "|")
 stove_groups <-paste(stove_group_codes$group,collapse = "|")
@@ -27,15 +27,9 @@ save_path = grep(dir(paste0('../',studies_export_folder)),pattern = 'mission|Ico
 
 # Read in the missions and events CSVs
 events = fread(paste(studies_export_folder, 'events.csv', sep = '/'))
-events = events[processor_name==processor]
+events = events[processor_name==processor1 | processor_name==processor2]
 events$start_time = as.POSIXct(events$start_time, "%Y-%m-%dT%H:%M:%S", tz = "UTC")
 events$stop_time = as.POSIXct(events$stop_time, "%Y-%m-%dT%H:%M:%S", tz = "UTC")
-
-substitution_list <- stove_group_codes$stove_groups
-substitution_list <- str_replace_all(substitution_list, "[[:punct:]]", "")
-sub_list <- paste0("_",as.character(substitution_list)) #Create list for replacement
-names(sub_list ) <- substitution_list
-sub_list <- as.list(sub_list, use.names=FALSE)
 
 
 # Define a function to read Dot raw data files
@@ -50,8 +44,9 @@ read_dot_data_file = function(dot_data_file) {
 
 # Apply the function to read Dot data to all Dot data files and
 # convert individual dataframes into a single data frame
-dot_data = rbindlist(lapply(dot_data_files, read_dot_data_file), fill = T)
-dot_data[, filename:=NULL]
+# dot_data = rbindlist(lapply(dot_data_files, read_dot_data_file), fill = T)
+dot_data = rbindlist(ldply(dot_data_files, read_dot_data_file,.parallel = TRUE), fill = T)
+
 
 
 # Combine mission and tag metadata.  Parse tags. Need Stove Type, Group variable, HHID form the tags
@@ -74,13 +69,15 @@ tags = make_tags(fread(paste(studies_export_folder, 'tags.csv', sep = '/')))
 missions = fread(paste(studies_export_folder, 'missions.csv', sep = '/'))
 missions <- missions[grepl(campaign_name,campaign,ignore.case = TRUE),]
 missions = merge(missions,tags,by='mission_id')
-missions = missions[,c("mission_id","mission_name","meter_name","meter_id","notes","campaign","creator_username",
+missions = missions[,c("mission_id","mission_name","meter_name","meter_id","notes","group","campaign","creator_username",
                        "household_id","indoors","other_people_use","other_people_use_n","shared_cooking_area","stove_type","stove_type_other")]
 
+missions$group[is.na(missions$group)] <-'wood'
 missions$stove_type<-mgsub::mgsub(missions$stove_type, stove_codes$stove, stove_codes$stove_descriptions)
+missions$group<-mgsub::mgsub(missions$group, stove_group_codes$group, stove_group_codes$stove_groups)
 
 
-missions[,filename:=paste(shared_cooking_area,household_id,stove_type,indoors,sep = "_")]
+missions[,filename:=paste(group,household_id,stove_type,indoors,sep = "_")]
 missions[, household_id:=NULL]
 missions[, shared_cooking_area:=NULL]
 missions[, stove_type:=NULL]
@@ -152,7 +149,7 @@ uniquefiles <- unique(sumsarizer_output[,1])
 #Save each file separately with the new correct name.  
 for (i in 1:dim(uniquefiles)[1]) {
   output_temp <- sumsarizer_output[filename == uniquefiles[i]]
-  write.csv(output_temp, file = paste0("../",save_folder,"/",output_temp$filename[1],".csv"),row.names = FALSE)
+  write.csv(output_temp, file = paste0("../../",save_folder,"/",output_temp$filename[1],".csv"),row.names = FALSE)
 }
 
 # Clean up the files

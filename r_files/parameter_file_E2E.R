@@ -6,12 +6,14 @@ path_tracking_sheet_json <- NA #"~/Dropbox/Peru 2019 NAMA Internal/Analysis/SUMS
 project_name <- "Kenya E2E"
 
 stove_codes <- data.frame(stove = as.factor(c("lpg","traditional_manufactured","traditional_non_manufactured","kerosene",
-                                                    "electric","microwave","other","tsf","charcoal jiko","charcoal_jiko")),  #Use these if there are different study arms.
+                                              "lpg","trad-manufactured","trad-non-manufactured","3-stone-fire",
+                                                    "electric","microwave","other","tsf","charcoal jiko","charcoal_jiko","charcoal")),  #Use these if there are different study arms.
                           stove_descriptions = as.factor(c("lpg","trad-manufactured","trad-non-manufactured","kerosene",
-                                                           "electric","microwave","other","3-stone-fire","char-jiko","char-jiko"))) #group variable in filter_sumsarized.R
+                                                           "lpg","trad-manufactured","trad-non-manufactured","trad-non-manufactured",
+                                                           "electric","microwave","charcoal","trad-non-manufactured","charcoal","charcoal","charcoal"))) #group variable in filter_sumsarized.R
 
-stove_group_codes <- data.frame(group = as.factor(c("group:lpg","group:biomass")),  #Use these if there are different study arms.
-                                stove_groups = as.factor(c("lpg","biomass"))) #group variable in filter_sumsarized.R
+stove_group_codes <- data.frame(group = as.factor(c("charcoal_unprocessed","lpg","biomass","agriculturalresidue","wood","kerosene","NA","charcoal")),  #Use these if there are different study arms.
+                                stove_groups = as.factor(c("charcoal-primary","lpg-primary","biomass-primary","biomass-primary","biomass-primary","kerosene-primary","biomass-primary","charcoal-primary"))) #group variable in filter_sumsarized.R
 
 region_codes <- data.frame(region_code = as.factor(c("01")),  #Use these if there are different study arms.
                                 region = as.factor(c("North"))) #group variable in filter_sumsarized.R
@@ -41,6 +43,7 @@ bad_files <- paste(c("Excl","|AMB","|Eliminar","|Pre_Pilot-04_TMS_DL-01"
 # Exclude data from the following households from the entire analysis. e.g.SHO_03 is removed
 HHID_remove <- paste(c("^SHO_03$","|^SHO_04$","|^NA$","|^MUS_01$","|^AMB$"),collapse="")
 
-
+# Files must have this pattern to be retained in the analysis
+HHID_keep <- paste(c("KE"))
 
 

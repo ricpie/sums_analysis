@@ -57,39 +57,41 @@ filter_sumsarized <- function(sumsarized,metadata,bad_files,HHID_remove,project_
 
 #________________________________________________________
 
-filter_sumsarized_ldply <- function(file,sumsarized,metadata,bad_files,HHID_remove,project_name,stove_codes){
+filter_sumsarized_ldply <- function(file,sumsarized,metadata,bad_files,HHID_remove,HHID_keep,project_name,stove_codes){
   
   #Grab data from file i, and keep only the entries that are marked as cooking
   #join with the meta data to get the logger id, field_site, and stove_type
   logger_id = sumsarized$logger_id[1]
   suppressMessages(sumsarized_filtered <- dplyr::filter(sumsarized,fullsumsarizer_filename %in% file) %>%
-    dplyr::mutate(HHID = if_else(!grepl("Nigeria_AfDB",project_name,ignore.case = TRUE),
-                                 substring(filename[1],sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[1])+1, 
-                                           sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[2])-1), #Else
-                                 substring(filename[1], 
-                                           1, sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[2])-1))) %>%  
-    # dplyr::mutate(HHID = if_else(grepl("\\(B\\)",filename,ignore.case=TRUE),gsub("\\(B\\)","B",HHID),HHID)) %>% #Special case for the B round of households  
-    {if(!is.na(metadata)) dplyr::left_join(dplyr::select(metadata, filename, logger_id, location,comments,datetime_placed,datetime_removal,
-                                                          deployment,enumerator,number_loggers_placed_home,stove_type),
-                                            by = "filename")
-     else dplyr::mutate(.,logger_id = as.factor(logger_id))
-    }  %>%
-    dplyr::mutate(HHID = as.factor(HHID[1])) %>%# 
-    dplyr::mutate(filename = substring(filename[1], 
-                                       sapply(filename[1], function(x) unlist(gregexpr('/',x,perl=TRUE))[1])+1,100)) %>%
-    dplyr::mutate(region = substring(filename[1],sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[3])+1,100)) %>%
-    dplyr::mutate(group = substring(filename[1],1, sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[1])-1)) %>% 
-    dplyr::mutate(stove = as.factor(substring(filename[1], 
-                                    sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[2])+1
-                                    ,sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[3])-1)))  %>%
-    dplyr::group_by(filename) %>%
-    dplyr::distinct(filename,datetime,stove_temp, .keep_all = TRUE)  %>% #Get rid of duplicate data points from the same file being imported/saved twice
-    dplyr::ungroup() %>%
-    dplyr::mutate(qc = if_else(grepl(bad_files,fullsumsarizer_filename[1],ignore.case=TRUE),"bad","ok")) %>%
-    dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID[1]),"bad",qc[1])) %>%
-    dplyr::left_join(dplyr::select(stove_codes,stove,stove_descriptions),by = "stove") %>%
-    dplyr::mutate(project_name = project_name) %>%
-    dplyr::filter(!is.na(HHID)))
+                     dplyr::mutate(HHID = if_else(!grepl("Nigeria_AfDB",project_name,ignore.case = TRUE),
+                                                  substring(filename[1],sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[1])+1, 
+                                                            sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[2])-1), #Else
+                                                  substring(filename[1], 
+                                                            1, sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[2])-1))) %>%  
+                     # dplyr::mutate(HHID = if_else(grepl("\\(B\\)",filename,ignore.case=TRUE),gsub("\\(B\\)","B",HHID),HHID)) %>% #Special case for the B round of households  
+                     {if(!is.na(metadata)) dplyr::left_join(dplyr::select(metadata, filename, logger_id, location,comments,datetime_placed,datetime_removal,
+                                                                          deployment,enumerator,number_loggers_placed_home,stove_type),
+                                                            by = "filename")
+                       else dplyr::mutate(.,logger_id = as.factor(logger_id))
+                     }  %>%
+                     dplyr::mutate(HHID = as.factor(HHID[1])) %>%# 
+                     dplyr::mutate(filename = substring(filename[1], 
+                                                        sapply(filename[1], function(x) unlist(gregexpr('/',x,perl=TRUE))[1])+1,100)) %>%
+                     dplyr::mutate(region = substring(filename[1],sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[3])+1,100)) %>%
+                     dplyr::mutate(group = substring(filename[1],1, sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[1])-1)) %>% 
+                     dplyr::mutate(stove = as.factor(substring(filename[1], 
+                                                               sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[2])+1
+                                                               ,sapply(filename[1], function(x) unlist(gregexpr('_',x,perl=TRUE))[3])-1)))  %>%
+                     dplyr::group_by(filename) %>%
+                     dplyr::distinct(filename,datetime,stove_temp, .keep_all = TRUE)  %>% #Get rid of duplicate data points from the same file being imported/saved twice
+                     dplyr::ungroup() %>%
+                     dplyr::mutate(qc = if_else(grepl(bad_files,fullsumsarizer_filename[1],ignore.case=TRUE),"bad","ok")) %>%
+                     dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID[1]),"bad",qc[1])) %>%
+                     dplyr::mutate(qc = if_else(!grepl(HHID_keep,HHID[1]),"bad",qc[1])) %>%
+                     dplyr::mutate(qc = if_else(stove_temp < 0,"bad",qc)) %>%
+                     dplyr::left_join(dplyr::select(stove_codes,stove,stove_descriptions),by = "stove") %>%
+                     dplyr::mutate(project_name = project_name) %>%
+                     dplyr::filter(!is.na(HHID)))
   
   
 }
