@@ -97,10 +97,18 @@ print(bad_files)
 #Import thermocouple data time series output from Sumsarizer.
 #datetime_placed is currently based on the metadata.  Flags data as good/bad based on the bad_files and HHID_remove variables.  Those are reapplied directly to the cooking events later, and filtered out if bad.
 if (( reimport_data == TRUE) |  (!file.exists("../r_files/sumsarized_filtered.RDS"))) {
-  sumsarized_filtered <- ldply(unique(sumsarized$fullsumsarizer_filename),filter_sumsarized_ldply,sumsarized,metadata,bad_files,HHID_remove,
-                               project_name,stove_codes,.parallel = TRUE)  %>% #HHID is grabbed from the filename.
+  sumsarized_filtered <-   sumsarized_filtered <- dplyr::group_by(sumsarized,filename) %>%
+    tidyr::separate(sumsarizer_filename, c("group", "HHID","stove","region"), "_", extra = "merge") %>%
+    dplyr::distinct(filename,datetime,stove_temp, .keep_all = TRUE)  %>% #Get rid of duplicate data points from the same file being imported/saved twice
+    dplyr::ungroup() %>%
+    dplyr::mutate(qc = if_else(grepl(bad_files,fullsumsarizer_filename,ignore.case=TRUE),"bad","ok")) %>%
+    dplyr::mutate(qc = if_else(grepl(HHID_remove,HHID),"bad",qc)) %>%
+    dplyr::left_join(dplyr::select(stove_codes,stove,stove_descriptions),by = "stove") %>%
+    dplyr::mutate(project_name = project_name) %>%
+    dplyr::mutate(datetime = as_datetime(datetime)+timezone*3600) #Put it in the local timezone.
     dplyr::mutate(file_indices = match(fullsumsarizer_filename, unique(fullsumsarizer_filename))) %>%
     dplyr::mutate(stove = as.factor(stove)) 
+
   
   saveRDS(sumsarized_filtered, file ="../r_files/sumsarized_filtered.RDS")
 } else {
